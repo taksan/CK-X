@@ -1,0 +1,668 @@
+{
+  "questions": [
+    {
+      "id": "1",
+      "namespace": "{{CONTROL_PLANE}}",
+      "machineHostname": "ckad9999",
+      "question": "Configure the Kubernetes API server auditing on the control plane (`{{CONTROL_PLANE}}`).\n\n1. Create the audit policy `/etc/kubernetes/audit/policy.yaml` so that:\n   - requests on the core resources `pods`, `services`, `configmaps` and `secrets` are logged at the `Metadata` level;\n   - the other requests that change objects (`create`, `update`, `patch`, `delete`) are logged at the `Request` level.\n   Metadata events must not contain request or response bodies; Request events must contain the request body but not the response body.\n2. Configure the kube-apiserver to use this policy and to write the audit log to `/etc/kubernetes/audit/logs/audit.log` on the control plane host, with the retention `--audit-log-maxsize=500`, `--audit-log-maxbackup=5` and `--audit-log-maxage=7`.\n3. Make sure the configuration is active in the running kube-apiserver and that the API server stays healthy.\n\nThe names of the volumes and volume mounts that you add to the kube-apiserver manifest are your choice.",
+      "concepts": [
+        "audit logging",
+        "kube-apiserver",
+        "audit policy"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The API server uses /etc/kubernetes/audit/policy.yaml (a valid Policy) and logs to /etc/kubernetes/audit/logs/audit.log",
+          "verificationScriptFile": "q1_s1_policy_and_log_path.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "Retention flags: 500 MB, 5 old files, 7 days",
+          "verificationScriptFile": "q1_s2_retention_flags.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "3",
+          "description": "pods, services, configmaps and secrets are logged at Metadata level",
+          "verificationScriptFile": "q1_s3_core_resources_metadata.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "4",
+          "description": "Changes of other resources are logged at Request level",
+          "verificationScriptFile": "q1_s4_other_requests_request.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "5",
+          "description": "The configuration is active in the running API server, which is healthy and writes audit events",
+          "verificationScriptFile": "q1_s5_active_and_healthy.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "namespace": "mem-watch",
+      "machineHostname": "ckad9999",
+      "question": "Falco is installed as a systemd service (`falco-modern-bpf`) on the worker node `{{NODE01}}` (`ssh {{NODE01}}`). In the namespace `mem-watch` the Deployments `compute-a`, `compute-b` and `compute-c` run on `{{NODE01}}`. The Deployment `compute-c` keeps a small file `/tmp/mem` and reads it every few seconds.\n\n1. Write a custom Falco rule that detects when a process reads `/tmp/mem` and raises an alert with the priority `WARNING`.\n2. The alert must contain enough information to associate the access with the Pod or container that made it.\n3. Load the rule in the Falco service of `{{NODE01}}` (use a custom rules file of Falco, do not edit the default `falco_rules.yaml`) and make sure the service runs with it.\n\nThe three Deployments must stay available. The name of the rule and the output format are your choice. The validation reads `/tmp/mem` in the workload again and checks the alert that Falco writes to the journal of the service.",
+      "concepts": [
+        "falco",
+        "runtime security",
+        "custom rules"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "A custom Falco rule for /tmp/mem exists on {{NODE01}}, Falco runs and the three workloads are available",
+          "verificationScriptFile": "q2_s1_rule_in_place_workloads.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "A fresh read of /tmp/mem produces a WARNING alert in the journal of the Falco service",
+          "verificationScriptFile": "q2_s2_warning_alert_on_read.sh",
+          "expectedOutput": "0",
+          "weightage": 5
+        },
+        {
+          "id": "3",
+          "description": "The alert contains the Pod name or the container id of the workload",
+          "verificationScriptFile": "q2_s3_alert_identifies_container.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "namespace": "world",
+      "machineHostname": "ckad9999",
+      "question": "Configure a TLS Ingress that exposes the Europe backend. The namespaces `asia`, `europe` and `world` exist and are empty. The Traefik ingress controller (IngressClass `traefik`) is installed in the cluster, together with its CRDs (for example `Middleware`).\n\n1. Backends. In each of the namespaces `asia` and `europe` create an nginx Deployment with exactly 2 replicas (the container exposes port 80) and a Service on port 80 that forwards to the ready Pods of that Deployment. Names are your choice.\n2. TLS. The files `/tmp/exam/mhagou-006-q3/cert.crt` and `/tmp/exam/mhagou-006-q3/cert.key` are the certificate and its private key. In the namespace `world` create a TLS Secret `test-secret` from them.\n3. Ingress. In the namespace `world` create an Ingress `world` for `https://world.universe.mine/europe` that uses `test-secret` and routes `/europe` to the Service `europe` on port 80.\n4. Bridge. Create a Service `europe` in the namespace `world`, port 80, that forwards the traffic to the ready nginx backend of the namespace `europe` (the way to do it is up to you).\n5. The nginx backend only serves its root path: the requests that reach it through `/europe` must be rewritten so that nginx serves `/`.\n\nA request to `https://world.universe.mine/europe` through the Traefik controller must verify the supplied certificate, return HTTP 200 and show the nginx welcome page of the Europe backend.",
+      "concepts": [
+        "ingress",
+        "tls",
+        "traefik",
+        "middleware",
+        "services"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The nginx backends of asia and europe have 2 ready replicas behind Services on port 80",
+          "verificationScriptFile": "q3_s1_backends.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "TLS Secret test-secret in world uses the supplied certificate and key",
+          "verificationScriptFile": "q3_s2_tls_secret.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "3",
+          "description": "Ingress world routes world.universe.mine/europe to Service europe on port 80 with test-secret",
+          "verificationScriptFile": "q3_s3_ingress.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "4",
+          "description": "Service europe in world forwards to the nginx backend of the namespace europe",
+          "verificationScriptFile": "q3_s4_bridge_service.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "5",
+          "description": "https://world.universe.mine/europe verifies the certificate, returns 200 and the nginx welcome page",
+          "verificationScriptFile": "q3_s5_https_europe.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "namespace": "files",
+      "machineHostname": "ckad9999",
+      "question": "Harden a Dockerfile and a Kubernetes Deployment manifest. The files are in `/tmp/exam/mhagou-006-q4/` (nothing has to be built or deployed): `Dockerfile` and `Deployment.yaml`.\n\n1. `Dockerfile`:\n   - every image stage must use a pinned Ubuntu version as its base image (for example `ubuntu:22.04`, not `latest`);\n   - the containers must run as the `nobody` user instead of root: the final image stage must explicitly select `nobody` as its runtime user. The Dockerfile must still build: a step that needs root (such as installing packages) must still run as root.\n2. `Deployment.yaml` (the Deployment `kafka`, do not rename it):\n   - it must use the API version `apps/v1`;\n   - no regular container and no init container may run in privileged mode;\n   - every regular container and every init container must use a read-only root filesystem.",
+      "concepts": [
+        "dockerfile",
+        "security context",
+        "least privilege"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Every stage of the Dockerfile uses a pinned Ubuntu base image",
+          "verificationScriptFile": "q4_s1_dockerfile_base_image.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "The final stage runs as nobody and the package installation still runs as root",
+          "verificationScriptFile": "q4_s2_dockerfile_nobody_user.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "Deployment kafka is apps/v1 and no container or init container is privileged",
+          "verificationScriptFile": "q4_s3_deployment_not_privileged.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "4",
+          "description": "Every container and init container has a read-only root filesystem",
+          "verificationScriptFile": "q4_s4_deployment_readonly_rootfs.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "namespace": "nginx-watch",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `nginx-watch` two Pods, `web-1` and `web-2`, run an nginx container each on the worker node `{{NODE02}}` (`ssh {{NODE02}}`). Falco is installed on that node.\n\nUse Falco to capture the process spawn/exec activity of **exactly one** of the two nginx containers (your choice):\n\n1. Configure the capture so that only the processes started in the selected container are recorded (not the processes of the other containers of the node).\n2. Run the capture for at least 30 seconds (the events in the file must cover at least 15 seconds).\n3. Write the events to `/tmp/exam/mhagou-006-q5/incident.txt` on `{{NODE02}}`, one event per line in exactly this format (brackets included):\n\n   `[time],[uid],[process]`\n\n   where `time` is the event timestamp (the time of day or an ISO 8601 date-time), `uid` is the numeric user id of the process and `process` is the process name. Every line must contain such an event; the text that Falco itself prints around the output of a rule (the time and priority prefix, the fields it appends) is accepted. The file must not contain headers, diagnostic messages or any other line.\n\nThe Falco rule or filter and the command that you use are your choice.",
+      "concepts": [
+        "falco",
+        "runtime security",
+        "process monitoring"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The incident file is not empty and every line has an event [time],[uid],[process]",
+          "verificationScriptFile": "q5_s1_incident_file_format.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "The events belong to exactly one of the two nginx containers",
+          "verificationScriptFile": "q5_s2_exactly_one_nginx_container.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "No process of any other container is in the file",
+          "verificationScriptFile": "q5_s3_only_that_container.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "4",
+          "description": "The events were recorded during the exam and cover at least 15 seconds",
+          "verificationScriptFile": "q5_s4_capture_duration.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        }
+      ]
+    },
+    {
+      "id": "6",
+      "namespace": "{{NODE01}}",
+      "machineHostname": "ckad9999",
+      "question": "A suspicious service is listening on TCP port 389 of the worker node `{{NODE01}}` (`ssh {{NODE01}}`).\n\n1. Identify the process that listens on port 389.\n2. Create the report `/tmp/exam/mhagou-006-q6/files.txt` on `{{NODE01}}` with the complete list of the files that this process has open, including its listening socket.\n3. Delete the executable file that the process runs from.\n\nThe process does not need to be stopped. Do not modify or delete any unrelated process or file.",
+      "concepts": [
+        "host hardening",
+        "processes",
+        "open files",
+        "attack surface"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The report lists the log and the data files that the process on port 389 has open",
+          "verificationScriptFile": "q6_s1_report_files_complete.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "The report contains the listening socket of the process",
+          "verificationScriptFile": "q6_s2_report_listening_socket.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "3",
+          "description": "The executable of the process was deleted and nothing else",
+          "verificationScriptFile": "q6_s3_executable_removed.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "7",
+      "namespace": "sandbox-lab",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `sandbox-lab` the Deployment `report-api` runs on the node `{{NODE02}}`, where the gVisor runtime (`runsc`) is installed.\n\n1. Create a RuntimeClass named `not-trusted` that uses the handler `runsc`.\n2. Edit the Deployment `report-api` so that its Pods run with this RuntimeClass, and wait until the rollout is complete.",
+      "concepts": [
+        "gvisor",
+        "runtimeclass",
+        "sandboxing"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "RuntimeClass not-trusted uses the handler runsc",
+          "verificationScriptFile": "q7_s1_runtimeclass.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "Deployment report-api uses the RuntimeClass not-trusted and its rollout is complete",
+          "verificationScriptFile": "q7_s2_deployment_uses_runtimeclass.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "The Pods of report-api run in a gVisor sandbox",
+          "verificationScriptFile": "q7_s3_pods_sandboxed.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        }
+      ]
+    },
+    {
+      "id": "8",
+      "namespace": "{{CONTROL_PLANE}}",
+      "machineHostname": "ckad9999",
+      "question": "Secure the kubelet that runs on the control plane node (`{{CONTROL_PLANE}}`).\n\n1. Disable the anonymous authentication of the kubelet.\n2. Configure the kubelet to use Webhook authorization.\n3. Disable the kubelet read-only port.\n4. Apply the configuration and make sure that the kubelet service keeps running and the node `{{CONTROL_PLANE}}` stays Ready.\n\nThe resulting runtime behaviour must be: an unauthenticated HTTPS request to the `/pods` endpoint of the kubelet on port 10250 is rejected with HTTP 401, and nothing listens on the insecure read-only port 10255 any more. Do not stop or disable the kubelet.",
+      "concepts": [
+        "kubelet",
+        "cluster hardening",
+        "authentication",
+        "authorization"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "An unauthenticated request to the kubelet /pods endpoint (10250) is rejected with 401",
+          "verificationScriptFile": "q8_s1_anonymous_rejected.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "The running kubelet uses Webhook authorization and the configuration file says so",
+          "verificationScriptFile": "q8_s2_webhook_authorization.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "The read-only port 10255 is closed, the kubelet runs and the node is Ready",
+          "verificationScriptFile": "q8_s3_readonly_port_closed_kubelet_healthy.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "9",
+      "namespace": "staff-lab",
+      "machineHostname": "ckad9999",
+      "question": "Configure certificate based authentication for the user `60099@internal.users`.\n\n1. Create a private key and a certificate signing request for the user: the certificate Common Name (CN) must be `60099@internal.users`. Submit it to the cluster as a CertificateSigningRequest (signer `kubernetes.io/kube-apiserver-client`) and approve it, then obtain the signed client certificate.\n2. Add the user to the kubeconfig that you are using (client certificate and its private key) and create a context that uses this user with the existing cluster entry.\n3. With that context the API server must authenticate you as `60099@internal.users`.\n4. Do not grant this user any permission: an authenticated request of this user to list the Pods in the namespace `staff-lab` must be rejected by authorization (Forbidden).\n\nThe names of the CertificateSigningRequest, the kubeconfig user and the context are your choice.",
+      "concepts": [
+        "certificate signing requests",
+        "client certificates",
+        "authentication",
+        "kubeconfig"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "A CertificateSigningRequest for CN=60099@internal.users is approved and signed (kube-apiserver-client)",
+          "verificationScriptFile": "q9_s1_csr_approved_signed.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "The kubeconfig has a user with that certificate (cluster CA, matching key) and a context for it",
+          "verificationScriptFile": "q9_s2_kubeconfig_context.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "3",
+          "description": "The context authenticates as 60099@internal.users",
+          "verificationScriptFile": "q9_s3_authenticates_as_user.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "4",
+          "description": "As that user, listing the Pods of staff-lab is Forbidden and no RBAC grants it",
+          "verificationScriptFile": "q9_s4_listing_pods_forbidden.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "namespace": "kernel-lab",
+      "machineHostname": "ckad9999",
+      "question": "Harden two workloads with AppArmor and seccomp. Both run on the worker node `{{NODE01}}` (`ssh {{NODE01}}`); the Pod manifests are in `/tmp/exam/mhagou-006-q10/` on the jumphost (`hello-apparmor.yaml` and `audit-pod.yaml`), the namespace is `kernel-lab`.\n\n1. AppArmor. A starter profile `k8s-apparmor-example-deny-write` is in `/tmp/exam/mhagou-006-q10/apparmor-profile` on `{{NODE01}}`; it does not protect anything yet. Change it so that **all file writes are denied**, load it on `{{NODE01}}` (enforce mode) and update `hello-apparmor.yaml` so that the Pod `hello-apparmor` runs with this profile (a `Localhost` profile). Deploy the Pod. Creating a directory inside the container must fail with \"Permission denied\".\n2. Seccomp. Create a seccomp profile `/var/lib/kubelet/seccomp/profiles/audit.json` on `{{NODE01}}` that allows every syscall **except the mounting of filesystems** (`mount`, which must fail with an error). Update `audit-pod.yaml` so that the Pod `audit-pod` uses this profile as a `Localhost` profile and disallows privilege escalation (container `test-container`). Deploy the Pod. With these settings a container must not be able to mount a filesystem.",
+      "concepts": [
+        "apparmor",
+        "seccomp",
+        "kernel hardening",
+        "pod security"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The AppArmor profile k8s-apparmor-example-deny-write is loaded in enforce mode on {{NODE01}}",
+          "verificationScriptFile": "q10_s1_apparmor_profile_loaded.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "Pod hello-apparmor runs with the Localhost profile and it is enforced on the process",
+          "verificationScriptFile": "q10_s2_pod_apparmor_enforced.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "3",
+          "description": "Creating a directory in hello-apparmor is denied",
+          "verificationScriptFile": "q10_s3_apparmor_denies_writes.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "4",
+          "description": "Pod audit-pod uses a Localhost seccomp profile, no privilege escalation, Seccomp: 2 at runtime",
+          "verificationScriptFile": "q10_s4_pod_seccomp_localhost.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "5",
+          "description": "A container with the seccomp profile of audit-pod cannot mount a filesystem (even with CAP_SYS_ADMIN)",
+          "verificationScriptFile": "q10_s5_mount_denied_by_settings.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "11",
+      "namespace": "pss-test",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `pss-test` (it has no Pod Security labels yet):\n\n1. Configure the namespace so that it **enforces** the Kubernetes Pod Security Standard at the `restricted` level.\n2. The Pod in `/tmp/exam/mhagou-006-q11/test-pod.yaml` is the starting point. Check that it is rejected by Pod Security admission under this policy.\n3. Change the Pod (edit a copy of the file) so that it complies with the `restricted` standard, and create it as `test-pod` in `pss-test`. The corrected Pod must be accepted, become Running and Ready, and every regular container must run with a non-root UID.\n\nDo not disable or weaken the `restricted` policy to make the Pod run.",
+      "concepts": [
+        "pod security standards",
+        "pod security admission",
+        "restricted profile"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Namespace pss-test enforces the restricted Pod Security Standard",
+          "verificationScriptFile": "q11_s1_namespace_enforces_restricted.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "The original insecure Pod is rejected by Pod Security admission",
+          "verificationScriptFile": "q11_s2_original_pod_rejected.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "3",
+          "description": "The corrected Pod test-pod is Running and Ready under the restricted policy with a non-root UID",
+          "verificationScriptFile": "q11_s3_corrected_pod_running_nonroot.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "12",
+      "namespace": "{{CONTROL_PLANE}}",
+      "machineHostname": "ckad9999",
+      "question": "Harden the TLS configuration of the control plane (`{{CONTROL_PLANE}}`).\n\n1. Configure the kube-apiserver to require TLS 1.3 as its minimum supported TLS protocol version.\n2. Configure the kube-apiserver cipher suites to contain exactly `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`.\n3. Configure the etcd cipher suites to contain exactly `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`.\n4. Make sure that all etcd client listeners use HTTPS.\n5. Apply the configuration so that the running control plane processes use the settings.\n\nAfterwards exactly one kube-apiserver process and one etcd process must run, the kube-apiserver must negotiate TLS 1.3, it must reject TLS 1.2, and the API server must be Ready, including its etcd readiness check. Do not disable TLS or bypass the security checks of the control plane.",
+      "concepts": [
+        "tls",
+        "kube-apiserver",
+        "etcd",
+        "control plane hardening"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "kube-apiserver requires TLS 1.3 as minimum (manifest, process, handshake)",
+          "verificationScriptFile": "q12_s1_apiserver_min_tls13.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "The kube-apiserver rejects TLS 1.2",
+          "verificationScriptFile": "q12_s2_apiserver_rejects_tls12.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "3",
+          "description": "kube-apiserver cipher suites are exactly TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+          "verificationScriptFile": "q12_s3_apiserver_cipher_suites.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "4",
+          "description": "etcd cipher suites are exactly TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+          "verificationScriptFile": "q12_s4_etcd_cipher_suites.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "5",
+          "description": "All etcd client listeners use https",
+          "verificationScriptFile": "q12_s5_etcd_https_listeners.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "6",
+          "description": "One kube-apiserver and one etcd process run and the API server is Ready including etcd",
+          "verificationScriptFile": "q12_s6_control_plane_healthy_after_changes.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        }
+      ]
+    },
+    {
+      "id": "13",
+      "namespace": "app",
+      "machineHostname": "ckad9999",
+      "question": "Cilium is the CNI of the cluster. The namespaces `app`, `data` and `manage` exist and each contains one nginx Pod: `app1` (label `id=app`), `data1` (label `id=data`) and `manage1` (label `id=manage`).\n\nCreate a CiliumNetworkPolicy named `policy1` in the namespace `app` that restricts the **egress** of the Pods of the namespace `app` so that they can only send traffic to the Pods labelled `id=data` of the namespace `data`.\n\nAfterwards `app1` must still be able to reach `data1` (HTTP, port 80) and must not be able to reach `manage1`.",
+      "concepts": [
+        "cilium",
+        "network policy",
+        "egress"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "CiliumNetworkPolicy policy1 in app allows egress towards the Pods id=data of the namespace data",
+          "verificationScriptFile": "q13_s1_policy_structure.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "app1 cannot reach manage1",
+          "verificationScriptFile": "q13_s2_manage_blocked.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "app1 reaches data1 while manage1 is blocked",
+          "verificationScriptFile": "q13_s3_data_reachable_manage_blocked.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "14",
+      "namespace": "inspect-lab",
+      "machineHostname": "ckad9999",
+      "question": "The Pod `test` in the namespace `inspect-lab` runs on the worker node `{{NODE01}}` (`ssh {{NODE01}}`). Its container keeps starting a process every few seconds.\n\nInspect the container from the node (for example with `crictl`, `/proc` and `strace`) and write the report `/tmp/exam/mhagou-006-q14/report.txt` on `{{NODE01}}`. The file already exists on `{{NODE01}}` with the three lines and a placeholder for each value: replace each `<...>` with the value (`process=` the name of the process that the container starts every few seconds, `uid=` the numeric user id that this process runs with, `image=` the repository of the container image, without the tag).\n\nDo not modify or delete the Pod.",
+      "concepts": [
+        "strace",
+        "crictl",
+        "runtime inspection",
+        "containers"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "process= names the process that the container spawns",
+          "verificationScriptFile": "q14_s1_process_name.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "uid= is the numeric user id of that process",
+          "verificationScriptFile": "q14_s2_process_uid.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "image= is the repository of the container image",
+          "verificationScriptFile": "q14_s3_image_repository.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "15",
+      "namespace": "files",
+      "machineHostname": "ckad9999",
+      "question": "Generate and scan SBOMs with `trivy` (installed on the jumphost). Work in `/tmp/exam/mhagou-006-q15/`:\n\n1. Generate an **SPDX-JSON** SBOM of the image `alpine:3.20.3` and save it as `sbom1.json`.\n2. Generate a **CycloneDX** SBOM of the image `busybox:1.36.1` and save it as `sbom2.json`.\n3. Scan the existing SBOM `sbom_check.json` for vulnerabilities of the severities **HIGH and CRITICAL** only and save the result in **JSON** format as `sbom_result.json`.",
+      "concepts": [
+        "sbom",
+        "trivy",
+        "supply chain"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "sbom1.json is an SPDX-JSON SBOM of alpine:3.20.3",
+          "verificationScriptFile": "q15_s1_spdx_sbom.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "sbom2.json is a CycloneDX SBOM of busybox:1.36.1",
+          "verificationScriptFile": "q15_s2_cyclonedx_sbom.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "sbom_result.json is the JSON scan of sbom_check.json with HIGH and CRITICAL findings only",
+          "verificationScriptFile": "q15_s3_sbom_scan.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "16",
+      "namespace": "gvisor-lab",
+      "machineHostname": "ckad9999",
+      "question": "gVisor (`runsc`) is installed on the worker node `{{NODE02}}`.\n\n1. Create a RuntimeClass named `hardened` that uses the handler `runsc`.\n2. Create a Pod named `secure` (image `nginx`) in the namespace `gvisor-lab` that runs on `{{NODE02}}` in the gVisor sandbox, using this RuntimeClass.\n\nVerify that the kernel log inside the container is the one of gVisor.",
+      "concepts": [
+        "gvisor",
+        "runtimeclass",
+        "sandboxing"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "RuntimeClass hardened uses the handler runsc",
+          "verificationScriptFile": "q16_s1_runtimeclass.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "Pod secure (nginx) runs on {{NODE02}} with the RuntimeClass hardened",
+          "verificationScriptFile": "q16_s2_pod_runtimeclass.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "3",
+          "description": "dmesg inside the Pod shows gVisor",
+          "verificationScriptFile": "q16_s3_pod_dmesg_gvisor.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "17",
+      "namespace": "{{NODE02}}",
+      "machineHostname": "ckad9999",
+      "question": "On the worker node `{{NODE02}}` (`ssh {{NODE02}}`) a container engine daemon runs as the systemd service `lab-docker` and a user `developer` is a member of the group `docker`.\n\n1. Remove the user `developer` from the group `docker` (the user and the group must stay).\n2. The daemon must not accept connections over TCP any more: change its service configuration so that it only listens on its unix socket, and apply the change so that the running service listens on no TCP port (the service must keep running).",
+      "concepts": [
+        "container runtime security",
+        "docker group",
+        "systemd",
+        "host hardening"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The user developer is no longer a member of the group docker",
+          "verificationScriptFile": "q17_s1_user_not_in_docker_group.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "The daemon no longer listens on TCP; it runs and serves its unix socket",
+          "verificationScriptFile": "q17_s2_daemon_no_tcp.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    }
+  ]
+}

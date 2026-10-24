@@ -1,0 +1,15 @@
+{
+  "lab": "mhagou-006",
+  "name": "CKS - MHagou - Exam 6",
+  "description": "Audit policy, Falco rules and capture, Traefik TLS ingress with prefix stripping, Dockerfile hardening, kubelet and control plane TLS hardening, client certificates, AppArmor and seccomp, Pod Security, Cilium policy, SBOMs, gVisor and host hardening",
+  "difficulty": "Hard",
+  "warmUpTimeInSeconds": 300,
+  "examDurationInMinutes": 120,
+  "workerNodes": 1,
+  "answers": "assets/exams/cks-mhagou/006/answers.md",
+  "questions": "assessment.json",
+  "totalMarks": 100,
+  "lowScore": 40,
+  "mediumScore": 60,
+  "highScore": 90
+}
