@@ -1,0 +1,555 @@
+{
+  "questions": [
+    {
+      "id": "1",
+      "namespace": "profile-lab",
+      "machineHostname": "ckad9999",
+      "question": "Enforce a prepared AppArmor profile on the worker node `{{NODE02}}` and deploy a Pod that uses it.\n\nThe profile `nginx-deny` is prepared in `/etc/apparmor.d/nginx_apparmor` on `{{NODE02}}`. Load it on `{{NODE02}}`, then update the Pod manifest `/tmp/exam/cks-003-q1/pod.yaml` so that its container uses this profile, and deploy the Pod `app-runner` in the `profile-lab` namespace. The Pod must be running on `{{NODE02}}` and the profile must be enforced: the container must not be able to write to the filesystem.",
+      "concepts": [
+        "apparmor",
+        "pod security",
+        "node hardening"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "AppArmor profile nginx-deny is loaded on {{NODE02}}",
+          "verificationScriptFile": "q1_s1_validate_apparmor_profile_loaded.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "Pod app-runner in namespace profile-lab runs on {{NODE02}} with the nginx-deny profile enforced",
+          "verificationScriptFile": "q1_s2_validate_pod_uses_apparmor.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "namespace": "audit-lab",
+      "machineHostname": "ckad9999",
+      "question": "Enable Kubernetes audit logging with custom retention and policy rules on the control plane (`{{CONTROL_PLANE}}`).\n\n- Store the audit logs at `/var/log/kubernetes-logs.log`, keep the logs for 12 days, keep at most 8 old log files and rotate the log when it reaches 200 MB.\n- Write an audit policy in a file of your choice on the control plane and make the API server use it. The policy must:\n  1. log namespace changes at `RequestResponse` level\n  2. log secret changes in the `kube-system` namespace at `Request` level\n  3. log all other core and extensions resources at `Request` level\n  4. log `pods/portforward` and `services/proxy` at `Metadata` level\n  5. omit the stage `RequestReceived`\n  6. log all other requests at `Metadata` level",
+      "concepts": [
+        "audit logging",
+        "kube-apiserver",
+        "log rotation",
+        "audit policy"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "kube-apiserver uses an audit policy file (a valid Policy) and logs to /var/log/kubernetes-logs.log",
+          "verificationScriptFile": "q2_s1_validate_policy_and_log_path.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "kube-apiserver retention: 12 days, 8 old files, 200 MB",
+          "verificationScriptFile": "q2_s2_validate_retention_flags.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "3",
+          "description": "Namespace changes are logged at RequestResponse",
+          "verificationScriptFile": "q2_s3_validate_namespaces_level.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "4",
+          "description": "Secret changes in kube-system are logged at Request",
+          "verificationScriptFile": "q2_s4_validate_kube_system_secrets_level.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "5",
+          "description": "Other core and extensions resources are logged at Request",
+          "verificationScriptFile": "q2_s5_validate_core_and_extensions_level.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "6",
+          "description": "pods/portforward and services/proxy are logged at Metadata",
+          "verificationScriptFile": "q2_s6_validate_portforward_proxy_level.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "7",
+          "description": "The stage RequestReceived is omitted",
+          "verificationScriptFile": "q2_s7_validate_omit_request_received.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "8",
+          "description": "All other requests are logged at Metadata",
+          "verificationScriptFile": "q2_s8_validate_catch_all_level.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "namespace": "files",
+      "machineHostname": "ckad9999",
+      "question": "Scan the following container images with Trivy and only consider vulnerabilities with the severity `HIGH` or `CRITICAL`:\n\n- `httpd:2.4.49`\n- `postgres:12`\n- `alpine:3.12`\n\nStore the combined scan output of the three images in `/tmp/exam/cks-003-q3/trivy-vulnerable.txt`.",
+      "concepts": [
+        "trivy",
+        "image scanning",
+        "vulnerabilities",
+        "supply chain security"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The report contains the scan of httpd:2.4.49, postgres:12 and alpine:3.12",
+          "verificationScriptFile": "q3_s1_validate_all_images_scanned.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "The report only lists HIGH and CRITICAL vulnerabilities",
+          "verificationScriptFile": "q3_s2_validate_only_high_critical.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "namespace": "runtime-watch",
+      "machineHostname": "ckad9999",
+      "question": "Monitor the containers running on the worker node `{{NODE02}}` with Falco (or a similar tool) and detect the processes that are newly spawned in containers. Monitor for at least 30 seconds. The file must contain the events of **every** container of the node, including the Pod `beacon` of the namespace `runtime-watch`, which keeps spawning a process: do not filter any container out.\n\nStore the detected events in `/tmp/exam/cks-003-q4/alerts/details` on `{{NODE02}}`, one line per event in the format `timestamp,uid/username,processName` with an ISO 8601 timestamp, for example `2025-08-10T17:45:17.123456789Z,root,init`.",
+      "concepts": [
+        "falco",
+        "runtime security",
+        "process monitoring"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The incident file on {{NODE02}} has events in the format timestamp,uid/username,processName, including the process spawned by the workload",
+          "verificationScriptFile": "q4_s1_validate_incident_file.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "2",
+          "description": "The events have ISO 8601 timestamps from after the exam started and cover at least 30 seconds",
+          "verificationScriptFile": "q4_s2_validate_timestamps.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "namespace": "dev-team",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `dev-team`, create a NetworkPolicy named `restricted-policy` that restricts the access to the Pod `products-service`.\n\nOnly allow ingress traffic from:\n\n1. Pods in the same namespace `dev-team`.\n2. Pods with the label `environment=testing` in any namespace.\n\nAll other ingress traffic to the Pod must be denied.",
+      "concepts": [
+        "network policies",
+        "ingress",
+        "pod selector",
+        "namespace selector"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "NetworkPolicy restricted-policy exists in dev-team, restricts ingress and selects products-service",
+          "verificationScriptFile": "q5_s1_validate_policy_exists.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "Pods of dev-team and Pods labelled environment=testing can reach products-service; other Pods cannot",
+          "verificationScriptFile": "q5_s2_validate_traffic.sh",
+          "expectedOutput": "0",
+          "weightage": 5
+        }
+      ]
+    },
+    {
+      "id": "6",
+      "namespace": "files",
+      "machineHostname": "ckad9999",
+      "question": "Use kubesec to scan the Pod manifest `/tmp/exam/cks-003-q6/kubesec-test.yaml` and apply the recommended security changes, so that the manifest gets a score of at least 4 points and has no critical finding.\n\nDo not change the Pod name or the container image.",
+      "concepts": [
+        "kubesec",
+        "static analysis",
+        "security context",
+        "supply chain security"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "kubesec reports no critical finding and the manifest still describes Pod kubesec-demo",
+          "verificationScriptFile": "q6_s1_validate_no_critical_findings.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "kubesec gives the manifest a score of at least 4",
+          "verificationScriptFile": "q6_s2_validate_kubesec_score.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "7",
+      "namespace": "sandbox",
+      "machineHostname": "ckad9999",
+      "question": "Run a Pod in a gVisor sandbox:\n\n- Create a RuntimeClass named `untrusted` that uses the prepared runtime handler `runsc`.\n- Deploy a Pod named `untrusted` with the image `alpine:3.18` (command `sleep 3600`) in the `sandbox` namespace. It must run on the node `{{NODE02}}` and use the `untrusted` RuntimeClass.\n- Save the output of `dmesg`, run inside the running Pod, in `/tmp/exam/cks-003-q7/untrusted-dmesg.txt`.",
+      "concepts": [
+        "runtimeclass",
+        "gvisor",
+        "sandboxing",
+        "container runtimes"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "RuntimeClass untrusted exists with handler runsc",
+          "verificationScriptFile": "q7_s1_validate_runtimeclass.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "Pod untrusted runs on {{NODE02}} with the untrusted RuntimeClass",
+          "verificationScriptFile": "q7_s2_validate_pod.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "The dmesg output of the gVisor sandbox is saved in the file",
+          "verificationScriptFile": "q7_s3_validate_dmesg_file.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "8",
+      "namespace": "staging",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `staging`:\n\n1. Enforce the Pod Security Standard `baseline` on the namespace, so that privileged Pods are rejected.\n2. Create a ServiceAccount `deployer-sa`.\n3. Create a Role `pod-manager` that allows only `create`, `get`, `list` and `delete` on Pods.\n4. Create a RoleBinding `pod-manager-binding` that binds the Role to the ServiceAccount.",
+      "concepts": [
+        "pod security admission",
+        "rbac",
+        "service accounts",
+        "privileged containers"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "staging enforces Pod Security: privileged Pods are rejected and normal Pods are accepted",
+          "verificationScriptFile": "q8_s1_validate_pod_security.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "deployer-sa can create, get, list and delete Pods in staging and nothing else",
+          "verificationScriptFile": "q8_s2_validate_rbac.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "deployer-sa can create a normal Pod but not a privileged one",
+          "verificationScriptFile": "q8_s3_validate_serviceaccount_cannot_run_privileged.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "9",
+      "namespace": "john",
+      "machineHostname": "ckad9999",
+      "question": "Create a new Kubernetes user `john` that authenticates with a client certificate:\n\n1. Generate a private key and a Certificate Signing Request for `john` (`CN=john`), submit it to the cluster, approve it and retrieve the signed certificate.\n2. In the namespace `john`, create a Role `john-role` that allows only `list`, `get`, `create` and `delete` on `pods` and `secrets`.\n3. Create a RoleBinding `john-role-binding` that binds the Role to the user `john`.\n4. Verify the permissions with `kubectl auth can-i`.",
+      "concepts": [
+        "certificate signing requests",
+        "users",
+        "rbac",
+        "client certificates"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "A CertificateSigningRequest for CN=john is approved and signed",
+          "verificationScriptFile": "q9_s1_validate_csr_approved.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "Role john-role allows list, get, create and delete on pods and secrets only",
+          "verificationScriptFile": "q9_s2_validate_role.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "RoleBinding john-role-binding binds the Role to john and the permissions are correct",
+          "verificationScriptFile": "q9_s3_validate_rolebinding_permissions.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "namespace": "web-tls",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `web-tls`:\n\n1. Create a TLS Secret `bingo-tls` from `/tmp/exam/cks-003-q10/bingo.crt` and `/tmp/exam/cks-003-q10/bingo.key`.\n2. Deploy a Pod `shop-web` (image `nginx`) and expose it on port 80 with a Service.\n3. Create an Ingress for the host `bingo.com` that serves the Pod over TLS with the secret `bingo-tls` and redirects all HTTP traffic to HTTPS.\n\nThe Traefik ingress controller (IngressClass `traefik`) is installed in the cluster, together with its CRDs (for example `Middleware`).",
+      "concepts": [
+        "ingress",
+        "tls",
+        "secrets",
+        "http to https redirect",
+        "traefik"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "TLS Secret bingo-tls is made from the provided certificate and key",
+          "verificationScriptFile": "q10_s1_validate_tls_secret.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "Pod shop-web runs and a Service on port 80 routes to it",
+          "verificationScriptFile": "q10_s2_validate_pod_and_service.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "3",
+          "description": "The Ingress routes bingo.com to shop-web with TLS from bingo-tls",
+          "verificationScriptFile": "q10_s3_validate_ingress.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "4",
+          "description": "HTTP requests for bingo.com are redirected to HTTPS",
+          "verificationScriptFile": "q10_s4_validate_http_redirect.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "5",
+          "description": "HTTPS serves the Pod with the provided certificate",
+          "verificationScriptFile": "q10_s5_validate_https_certificate.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "11",
+      "namespace": "kube-system",
+      "machineHostname": "ckad9999",
+      "question": "A CIS Benchmark scan reported violations on the kubelet, on etcd and on two control plane components. Fix them:\n\n1. kubelet on `{{NODE02}}`: disable anonymous authentication, set the authorization mode to `Webhook` and disable the read-only port (`readOnlyPort: 0`). Restart the kubelet and make sure the node is Ready.\n2. etcd (on `{{CONTROL_PLANE}}`): enforce client certificate authentication (`--client-cert-auth=true`) and explicitly disable `--auto-tls`.\n3. kube-controller-manager and kube-scheduler: disable profiling (`--profiling=false`).",
+      "concepts": [
+        "kube-bench",
+        "cis benchmark",
+        "kubelet",
+        "etcd",
+        "cluster setup"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "kubelet on {{NODE02}} has anonymous auth disabled, Webhook authorization and no read-only port",
+          "verificationScriptFile": "q11_s1_validate_kubelet.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "etcd enforces client certificate authentication and has auto-tls disabled",
+          "verificationScriptFile": "q11_s2_validate_etcd.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "kube-controller-manager and kube-scheduler have --profiling=false",
+          "verificationScriptFile": "q11_s3_validate_scheduler_and_controller_manager.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "12",
+      "namespace": "safe",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `safe`:\n\n1. Read the existing secret `admin` and store its decoded fields in local files: `username` in `/tmp/exam/cks-003-q12/username.txt` and `password` in `/tmp/exam/cks-003-q12/password.txt`.\n2. Create a new secret `newsecret` with `username=dbadmin` and `password=moresecurepas`.\n3. Create a Pod that mounts `newsecret` as a volume and keep it running.",
+      "concepts": [
+        "secrets",
+        "volume mounts",
+        "base64"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "username.txt and password.txt contain the decoded fields of the secret admin",
+          "verificationScriptFile": "q12_s1_validate_exported_files.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "Secret newsecret has the requested username and password",
+          "verificationScriptFile": "q12_s2_validate_newsecret.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "A running Pod mounts the secret newsecret",
+          "verificationScriptFile": "q12_s3_validate_pod_mounts_secret.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "13",
+      "namespace": "{{NODE02}}",
+      "machineHostname": "ckad9999",
+      "question": "A service is listening on port 389 on the worker node `{{NODE02}}` (connect with `ssh {{NODE02}}`).\n\n1. Find the process of the service.\n2. Store the list of all its open files in `/tmp/exam/cks-003-q13/files.txt` on `{{NODE02}}`.\n3. Stop the service and delete its executable.",
+      "concepts": [
+        "host hardening",
+        "processes",
+        "open files",
+        "attack surface"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The list of open files of the service is saved on {{NODE02}}",
+          "verificationScriptFile": "q13_s1_validate_open_files_list.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "Nothing listens on port 389 any more",
+          "verificationScriptFile": "q13_s2_validate_service_stopped.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "3",
+          "description": "The executable of the service is removed",
+          "verificationScriptFile": "q13_s3_validate_binary_removed.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "14",
+      "namespace": "security",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `security`, the ServiceAccount `sa-dev-1` (used by the Pod `web-pod`) is bound to a Role that gives it too many permissions.\n\n1. Modify that existing Role so that `sa-dev-1` is allowed to **only** `watch` `services`.\n2. Create a ClusterRole `role-2` that allows **only** `update` on `namespaces`.\n3. Bind it to `sa-dev-1` with a ClusterRoleBinding named `role-2-binding`.",
+      "concepts": [
+        "rbac",
+        "roles",
+        "clusterroles",
+        "least privilege"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "sa-dev-1 can only watch services in security and the Role of the other ServiceAccount is unchanged",
+          "verificationScriptFile": "q14_s1_validate_existing_role.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "ClusterRole role-2 and ClusterRoleBinding role-2-binding give sa-dev-1 only update on namespaces",
+          "verificationScriptFile": "q14_s2_validate_clusterrole.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    },
+    {
+      "id": "15",
+      "namespace": "projected-tokens",
+      "machineHostname": "ckad9999",
+      "question": "A Pod `token-demo` is running in the `projected-tokens` namespace with the automatically mounted token of the default ServiceAccount.\n\n1. Create a new ServiceAccount `api-client` in the namespace with automatic token mounting disabled.\n2. Update the Pod so that it uses `api-client` and mounts a projected ServiceAccount token at `/var/run/secrets/tokens`: file `token.jwt`, expiring after 600 seconds, with the audience `https://kubernetes.default.svc.cluster.local`.",
+      "concepts": [
+        "service accounts",
+        "projected volumes",
+        "token audience",
+        "token expiration"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "ServiceAccount api-client exists with automatic token mounting disabled",
+          "verificationScriptFile": "q15_s1_validate_serviceaccount.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "Pod token-demo uses api-client and mounts the projected token as requested",
+          "verificationScriptFile": "q15_s2_validate_pod_spec.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "The token seen by the Pod belongs to api-client, has the audience and lasts 600 seconds",
+          "verificationScriptFile": "q15_s3_validate_token_content.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "16",
+      "namespace": "files",
+      "machineHostname": "ckad9999",
+      "question": "Two copies of the kubectl binary were downloaded to `/tmp/exam/cks-003-q16`: `kubectl-a` and `kubectl-b`. The official SHA-256 checksum of kubectl is in `/tmp/exam/cks-003-q16/checksums.txt`.\n\nVerify the binaries against the checksum and delete the one that does not match.",
+      "concepts": [
+        "binary verification",
+        "checksums",
+        "supply chain security"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The tampered binary is deleted and the genuine one is intact",
+          "verificationScriptFile": "q16_s1_validate_tampered_removed.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    }
+  ]
+}

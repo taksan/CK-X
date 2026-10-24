@@ -1,0 +1,15 @@
+{
+  "lab": "cks-003",
+  "name": "CKS Practice Lab - Kubernetes Security - 3",
+  "description": "Runtime security, audit logging, image scanning, RBAC, network policies and cluster hardening",
+  "difficulty": "Hard",
+  "warmUpTimeInSeconds": 260,
+  "examDurationInMinutes": 120,
+  "workerNodes": 1,
+  "answers": "assets/exams/cks-reddit/003/answers.md",
+  "questions": "assessment.json",
+  "totalMarks": 100,
+  "lowScore": 40,
+  "mediumScore": 60,
+  "highScore": 90
+}

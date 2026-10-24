@@ -1,0 +1,2104 @@
+Question 1
+
+Enforce a prepared AppArmor profile on a Kubernetes Pod:
+
+- Apply the `nginx-deny` AppArmor profile on a worker node.
+    
+- Modify the Pod manifest to use this profile.
+    
+- Deploy the Pod and verify that the profile restricts file write operations.
+    
+
+
+
+solution
+
+#### Explanation
+
+AppArmor provides mandatory access control for processes, allowing you to restrict what a container can do. In this task, the `nginx-deny` profile denies all file writes. Depending on the Kubernetes version, AppArmor can be applied via annotations (<v1.30) or `securityContext` (≥v1.30).
+
+  
+
+**Commands / Steps:**
+
+  
+
+1. # SSH into the cluster node to deploy the AppArmor profile
+2. ssh cluster-node01
+
+3. # View the prepared AppArmor profile
+4. head /etc/apparmor.d/nginx_apparmor
+
+5. # profile example
+6. `#include <tunables/global>
+7. profile nginx-deny flags=(attach_disconnected) {
+8.     #include <abstractions/base>
+9.     file,
+10.     # Deny all file writes.
+11.     deny /** w,
+12. }`
+
+13. # Load the AppArmor profile
+14. apparmor_parser -q /etc/apparmor.d/nginx_apparmor
+
+15. # Check if the profile is loaded
+16. aa-status | grep nginx-deny
+
+17. # Exit the node
+18. exit
+
+  
+
+19. # Kubernetes Pod manifest for K8s ≥ 1.30
+20. apiVersion: v1
+21. kind: Pod
+22. metadata:
+23.   name: nginx-pod
+24. spec:
+25.   containers:
+26.   - name: nginx-pod
+27.     image: nginx:1.19.0
+28.     ports:
+29.     - containerPort: 80
+30.     securityContext:
+31.       appArmorProfile:
+32.         type: Localhost
+33.         localhostProfile: nginx-deny
+
+  
+
+34. # Kubernetes Pod manifest for K8s < 1.30 (using annotations)
+35. apiVersion: v1
+36. kind: Pod
+37. metadata:
+38.   name: nginx-pod
+39.   annotations:
+40.     container.apparmor.security.beta.kubernetes.io/nginx-pod: localhost/nginx-deny
+41. spec:
+42.   containers:
+43.   - name: nginx-pod
+44.     image: nginx:1.19.0
+45.     ports:
+46.     - containerPort: 80
+
+  
+
+47. # Apply the manifest (replace with correct filename)
+48. kubectl apply -f nginx-pod.yaml
+
+49. # Verify the Pod is running
+50. kubectl get pods nginx-pod
+
+51. # Test the restriction by attempting to write to a denied directory inside the Pod
+52. kubectl exec -it nginx-pod -- /bin/sh
+53. touch /restricted-directory/testfile
+54. # The operation should fail due to AppArmor restrictions
+55. exit
+
+  
+
+⚠️ Note:
+
+- Prior to Kubernetes v1.30, AppArmor profiles were specified using annotations.
+    
+- Container-level AppArmor profiles take precedence over pod-level profiles.
+    
+- Always verify which K8s version you are using to apply the correct method.
+    
+
+N/A
+
+**Resources**
+
+Domain
+
+System Hardening (10%) ✅
+
+Question 2Correct
+
+Enable and configure Kubernetes audit logging with specific retention, size, and logging policies:
+
+- Store audit logs at `/var/log/kubernetes-logs.log`.
+    
+- Retain logs for 12 days and keep a maximum of 8 old log files.
+    
+- Rotate logs when they reach 200MB.
+    
+- Extend the audit policy to log:
+    
+    1. Namespace changes at `RequestResponse` level.
+        
+    2. Request body of secret changes in the `kube-system` namespace.
+        
+    3. All other resources in core and extensions at `Request` level.
+        
+    4. `"pods/portforward"` and `"services/proxy"` at `Metadata` level.
+        
+    5. Omit the stage `RequestReceived`.
+        
+    6. Default all other requests at `Metadata` level.
+        
+
+
+
+solution
+
+#### Explanation
+
+Kubernetes audit logging allows tracking API requests for security and compliance. This task configures the audit backend to store logs on disk with rotation and retention settings, while specifying detailed rules for different resource types and namespaces.
+
+  
+
+**Commands / Steps:**
+
+  
+
+1. # Edit the audit policy file
+2. vim /etc/audit/audit-policy.yaml
+
+  
+
+3. # /etc/audit/audit-policy.yaml
+4. apiVersion: audit.k8s.io/v1
+5. kind: Policy
+6. omitStages:
+7.   - "RequestReceived"
+8. rules:
+9.   # 1. Log namespace changes at RequestResponse level
+10.   - level: RequestResponse
+11.     resources:
+12.       - group: ""   # core API group
+13.         resources: ["namespaces"]
+
+14.   # 2. Log request body of secret changes in kube-system
+15.   - level: Request
+16.     namespaces: ["kube-system"]
+17.     resources:
+18.       - group: ""
+19.         resources: ["secrets"]
+
+20.   # 3. Log all other core and extensions resources at Request level
+21.   - level: Request
+22.     resources:
+23.       - group: ""           # core
+24.       - group: "extensions" # deprecated API group
+
+25.   # 4. Log pods/portforward, services/proxy at Metadata level
+26.   - level: Metadata
+27.     resources:
+28.       - group: "" 
+29.         resources: ["pods/portforward", "services/proxy"]
+
+30.   # 5. Default: all other requests at Metadata level
+31.   - level: Metadata
+
+  
+
+32. # Edit the kube-apiserver manifest to enable audit logging
+33. vim /etc/kubernetes/manifests/kube-apiserver.yaml
+
+  
+
+34. # kube-apiserver.yaml snippet
+35. spec:
+36.   containers:
+37.   - name: kube-apiserver
+38.     image: k8s.gcr.io/kube-apiserver:v1.30.0
+39.     command:
+40.       - kube-apiserver
+41.       - --audit-policy-file=/etc/audit/audit-policy.yaml
+42.       - --audit-log-path=/var/log/kubernetes-logs.log
+43.       - --audit-log-maxage=12
+44.       - --audit-log-maxbackup=8
+45.       - --audit-log-maxsize=200
+46.     volumeMounts:
+47.       - mountPath: /etc/audit/audit-policy.yaml
+48.         name: audit
+49.         readOnly: true
+50.       - mountPath: /var/log/
+51.         name: audit-log
+52.         readOnly: false
+53.   volumes:
+54.     - name: audit
+55.       hostPath:
+56.         path: /etc/audit/audit-policy.yaml
+57.         type: File
+58.     - name: audit-log
+59.       hostPath:
+60.         path: /var/log/
+61.         type: DirectoryOrCreate
+
+  
+
+**Verification Step:**
+
+- Verify that audit logs are being generated:
+    
+
+1. tail -f /var/log/kubernetes-logs.log
+
+  
+
+⚠️ Note:
+
+- Ensure that the kube-apiserver Pod is restarted after modifying its manifest to pick up the new audit configuration.
+    
+- The `extensions` API group is deprecated; it is included here for backward compatibility.
+    
+- Audit policy stages and levels (`RequestResponse`, `Request`, `Metadata`) define the verbosity of the logged information
+    
+
+N/A
+
+**Resources**
+
+Domain
+
+Monitoring, Logging and Runtime Security (20%) ✅
+
+Question 3Correct
+
+Scan two container images for high and critical vulnerabilities using Trivy and save the results:
+
+- Images to scan:
+    
+    1. `ubuntu:18.04`
+        
+    2. `registry.k8s.io/kube-apiserver:v1.24.0`
+        
+    3. `registry.k8s.io/kube-scheduler:v1.23.0`
+        
+    4. `postgres:12`
+        
+    5. `httpd:2.4.49`
+        
+- Only consider vulnerabilities with severity `HIGH` or `CRITICAL`.
+    
+- Store the scan output in `/opt/trivy-vulnerable.txt`.
+    
+
+
+
+solution
+
+#### Explanation
+
+Trivy is a vulnerability scanner for container images. This task scans specific images for serious security issues and consolidates the findings into a single file for review.
+
+  
+
+**Commands / Steps:**
+
+  
+
+1. # Display Trivy help (optional)
+2. trivy image --help
+
+3. # Scan ubuntu:18.04 for HIGH and CRITICAL vulnerabilities and save output
+4. trivy image --severity HIGH,CRITICAL \
+5.   --output /opt/trivy-vulnerable.txt ubuntu:18.04
+
+6. # Scan kube-apiserver image and append output to the same file
+7. trivy image --severity HIGH,CRITICAL registry.k8s.io/kube-apiserver:v1.24.0 \
+8.   >> /opt/trivy-vulnerable.txt
+
+9. # Scan kube-scheduler image and append output to the same file
+10. trivy image --severity HIGH,CRITICAL registry.k8s.io/kube-scheduler:v1.23.0 \
+11.   >> /opt/trivy-vulnerable.txt
+
+12. # Scan postgres image and append output to the same file
+13. trivy image --severity HIGH,CRITICAL postgres:12 >> /opt/trivy-vulnerable.txt
+
+14. # Scan apache httpd image and append output to the same file
+15. trivy image --severity HIGH,CRITICAL httpd:2.4.49 >> /opt/trivy-vulnerable.txt
+
+  
+
+**Verification Step:**
+
+- Confirm that only HIGH or CRITICAL severity vulnerabilities are listed:
+    
+
+1. tail -f /opt/trivy-vulnerable.txt
+
+  
+
+⚠️ Note:
+
+- Additional options like `--format json` can be used for structured outputs if needed
+    
+
+N/A
+
+**Resources**
+
+Domain
+
+Supply Chain Security (20%) ✅
+
+Question 4Correct
+
+Monitor container behavior on a worker node using Falco or any similar tool to detect newly spawning and executing processes:
+
+- Analyze containers for at least 30 seconds using process execution filters.
+    
+- Store detected incidents in `/opt/node-01/alerts/details` in the format: `timestamp,uid/username,processName`.
+    
+- Example of a properly formatted incident file:
+    
+
+1. 2025-08-10T17:45:17.123Z,root,init
+2. 2025-08-10T17:45:20.124Z,1001,bash
+3. 2025-08-10T17:45:25.125Z,1002,sleep
+4. 2025-08-10T17:45:30.125Z,1010,curl
+
+
+
+solution
+
+#### Explanation
+
+Falco is a runtime security tool that monitors system calls and detects anomalous container behavior. This task configures Falco to log newly spawned processes into a structured incident file.
+
+  
+
+**Commands / Steps:**
+
+  
+
+1. # SSH into the worker node
+2. ssh node-01
+
+3. # Switch to root
+4. sudo -i
+
+5. # Inspect Falco configuration directory
+6. ls -l /etc/falco
+
+7. # Edit custom Falco rules
+8. vim /etc/falco/falco_rules.local.yaml
+
+  
+
+9. # Example Falco rule to detect new executable creation in containers
+10. - rule: Container Drift Detected
+11.   desc: New executable created in a container
+12.   condition: >
+13.     evt.type in (open,openat,creat) and evt.is_open_exec=true and container
+14.     and not runc_writing_exec_fifo
+15.     and not runc_var_lib_docker and not user_known_container_drift_activities
+16.     and evt.rawres>=0
+17.   output:
+18.     %evt.time,%user.uid,%proc.name
+19.   priority: ERROR
+20.   tags: [security]
+
+  
+
+21. # Edit Falco main configuration for logging output
+22. vim /etc/falco/falco.yaml
+
+  
+
+23. # Example file output configuration
+24. log_stderr: true
+25. log_syslog: true
+26. log_file: /opt/node-01/alerts/details
+
+27. # Or on newer versions
+28. file_output:
+29.   enabled: true
+30.   keep_alive: false
+31.   filename: /opt/node-01/alerts/details
+
+  
+
+32. # Verify Falco configuration
+33. grep -i log /etc/falco/falco.yaml
+34. grep -i file_output -A 3 /etc/falco/falco.yaml
+
+35. # Start or restart Falco service
+36. systemctl status falco.service
+37. systemctl start falco.service
+38. # or if Falco installed as a binary
+39. falco -U -r /etc/falco/falco_rules.local.yaml
+40. falco -M 500 -r /etc/falco/falco_rules.local.yaml
+
+41. # Exit the node
+42. exit
+
+  
+
+**Verification Step:**
+
+- Monitor the incident file for detected events:
+    
+
+1. tail -f /opt/node-01/alerts/details
+
+- Confirm that each line follows the format: timestamp,uid/username,processName
+    
+- Ensure new container processes are detected within ~30 seconds of execution.
+    
+
+  
+
+⚠️ Note:
+
+- Falco rules can be customized to include or exclude specific containers or events.
+    
+- Ensure Falco has sufficient permissions to monitor container processes.
+    
+- File-based logging path must exist (/opt/node-01/alerts/) and be writable by Falco.
+    
+
+N/A
+
+**Resources**
+
+Domain
+
+Monitoring, Logging and Runtime Security (20%) ✅
+
+Question 5Correct
+
+Create a NetworkPolicy named `restricted-policy` to restrict access to the Pod `products-service` in the `dev-team` namespace:
+
+- Only allow ingress traffic from:
+    
+    1. Pods in the same namespace `dev-team`.
+        
+    2. Pods with label `environment=testing` in any namespace.
+        
+
+
+
+solution
+
+#### Explanation
+
+Kubernetes NetworkPolicies control traffic to Pods. Here, we define an ingress policy that restricts access to `products-service` pods, while allowing only specific Pods from the same namespace or Pods with a specific label from any namespace.
+
+  
+
+**Commands / Steps:**
+
+  
+
+1. # Check namespace labels
+2. kubectl get ns dev-team --show-labels
+
+3. # Check pod labels in dev-team namespace
+4. kubectl get po -n dev-team --show-labels
+
+5. # Create the NetworkPolicy manifest
+6. vim netpol-restricted-policy.yaml
+
+  
+
+7. # netpol-restricted-policy.yaml
+8. apiVersion: networking.k8s.io/v1
+9. kind: NetworkPolicy
+10. metadata:
+11.   name: restricted-policy
+12.   namespace: dev-team
+13. spec:
+14.   podSelector:
+15.     matchLabels:
+16.       environment: dev    # selects products-service pods
+17.   policyTypes:
+18.   - Ingress
+19.   ingress:
+20.     # 1. Allow all pods in dev-team namespace
+21.     - from:
+22.         - podSelector: {}   # all pods in dev-team
+23.     # 2. Allow pods with label environment=testing in any namespace
+24.     - from:
+25.         - namespaceSelector: {}   # all namespaces
+26.           podSelector:
+27.             matchLabels:
+28.               environment: testing
+
+  
+
+29. # Apply the NetworkPolicy
+30. kubectl create -f netpol-restricted-policy.yaml
+
+31. # Describe the applied NetworkPolicy
+32. kubectl describe netpol -n dev-team restricted-policy
+
+  
+
+**Verification Step:**
+
+- Confirm the policy is applied and restricting traffic correctly:
+    
+
+1. kubectl get netpol -n dev-team
+2. kubectl describe netpol -n dev-team restricted-policy
+
+- Pods in dev-team should connect to products-service
+    
+- Pods with label environment=testing from other namespaces should connect.
+    
+- All other Pods should be denied.
+    
+
+  
+
+N/A
+
+**Resources**
+
+Domain
+
+Minimize Microservice Vulnerabilities (20%) ✅
+
+Question 6Correct
+
+Use KubeSec to scan a Pod manifest for security issues and apply suggested fixes to achieve a score of at least 4 points:
+
+- Scan the Pod manifest `kubesec-test.yaml` using the KubeSec Docker image.
+    
+- Apply the recommended security changes.
+    
+- Verify the manifest passes KubeSec scoring.
+    
+
+
+
+solution
+
+#### Explanation
+
+KubeSec evaluates Kubernetes manifests for security best practices. It checks fields such as running as non-root, capabilities, privilege escalation, and read-only root filesystem. Adjusting the manifest according to KubeSec suggestions improves security posture.
+
+  
+
+**Commands / Steps:**
+
+  
+
+1. # Scan the Pod manifest using KubeSec Docker image
+2. docker run -i kubesec/kubesec:512c5e0 scan /dev/stdin < kubesec-test.yaml
+
+3. # Scan the Pod manifest using KubeSec binary
+4. kubesec scan kubesec-test.yaml
+
+  
+
+5. # Original kubesec-test.yaml
+6. apiVersion: v1
+7. kind: Pod
+8. metadata:
+9.   name: kubesec-demo
+10. spec:
+11.   containers:
+12.     - name: kubesec-demo
+13.       image: gcr.io/google-samples/node-hello:1.0
+14.       securityContext:
+15.         readOnlyRootFilesystem: true
+16.         allowPrivilegeEscalation: true
+17.         capabilities:
+18.           add:
+19.             - SYS_ADMIN
+
+  
+
+- Example result (simplified):
+    
+
+1. [
+2.   {
+3.     "object": "Pod/kubesec-demo.default",
+4.     "valid": true,
+5.     "message": "Failed with a score of -30 points",
+6.     "score": -30,
+7.     "scoring": {
+8.       "critical": [
+9.         {
+10.           "selector": "containers[] .securityContext .runAsNonRoot == true",
+11.           "reason": "Force the running image to run as a non-root user to ensure least privilege"
+12.         },
+13.         {
+14.           "selector": "containers[] .securityContext .capabilities .add == SYS_ADMIN",
+15.           "reason": "CAP_SYS_ADMIN is the most privileged capability and should always be avoided"
+16.         }
+17.       ]
+18.     }
+19.   }
+20. ]
+
+  
+
+- KubeSec suggests the following changes:
+    
+    - `runAsNonRoot: true`
+        
+    - `runAsUser: 1000`
+        
+    - `allowPrivilegeEscalation: false`
+        
+    - `capabilities.drop: ["ALL"]`
+        
+    - `readOnlyRootFilesystem: true (already present)`
+        
+
+  
+
+1. # Edit the Pod manifest to apply KubeSec recommendations
+2. vim kubesec-test.yaml
+
+  
+
+3. # Updated kubesec-test.yaml
+4. apiVersion: v1
+5. kind: Pod
+6. metadata:
+7.   name: kubesec-demo
+8. spec:
+9.   containers:
+10.     - name: kubesec-demo
+11.       image: gcr.io/google-samples/node-hello:1.0
+12.       securityContext:
+13.         runAsUser: 1000
+14.         runAsNonRoot: true
+15.         allowPrivilegeEscalation: false
+16.         readOnlyRootFilesystem: true
+17.         capabilities:
+18.           drop:
+19.             - ALL
+
+  
+
+20. # Re-scan the updated manifest to verify improvements
+21. docker run -i kubesec/kubesec:512c5e0 scan /dev/stdin < kubesec-test.yaml
+
+  
+
+**Verification Step:**
+
+- Confirm that the manifest passes KubeSec scoring with a positive score (≥4)
+    
+- Ensure the following security constraints are enforced:
+    
+    - Container runs as non-root (`runAsNonRoot: true`, `runAsUser: 1000`)
+        
+    - No privilege escalation (`allowPrivilegeEscalation: false`)
+        
+    - All additional Linux capabilities are dropped (`capabilities.drop: ["ALL"]`)
+        
+    - Root filesystem is read-only (`readOnlyRootFilesystem: true`)
+        
+
+  
+
+⚠️ Note:
+
+- KubeSec provides detailed scoring for each security field.
+    
+- Using the Docker image ensures no local installation of KubeSec is required.
+    
+- Always review and apply recommendations for production manifests to enforce security best practices.
+    
+
+  
+
+N/A
+
+**Resources**
+
+Domain
+
+Supply Chain Security (20%) ✅
+
+Question 7Correct
+
+Deploy a Pod using a custom RuntimeClass:
+
+- Create a RuntimeClass named `untrusted` using the prepared runtime handler `runsc` (gVisor).
+    
+- Deploy a Pod named `untrusted` with image `alpine:3.18` in the `default` namespace.
+    
+- Ensure the Pod runs on `node-02` using the `untrusted` RuntimeClass.
+    
+- Capture the output of `dmesg` from the running Pod into `/opt/course/7/untrusted-test-dmesg`.
+    
+
+
+
+solution
+
+#### Explanation
+
+RuntimeClasses allow running Pods with different container runtimes such as gVisor for additional isolation. This task sets up a Pod with gVisor, ensuring it runs securely and verifies runtime logs via `dmesg`.
+
+  
+
+**Commands / Steps:**
+
+  
+
+1. # Create RuntimeClass manifest
+2. vim untrusted-rc.yaml
+
+  
+
+3. # untrusted-rc.yaml
+4. apiVersion: node.k8s.io/v1
+5. kind: RuntimeClass
+6. metadata:
+7.   name: untrusted
+8. handler: runsc
+
+  
+
+9. # Apply the RuntimeClass
+10. kubectl create -f untrusted-rc.yaml
+
+11. # Generate Pod manifest using dry-run
+12. kubectl run untrusted --image=alpine:3.18 --dry-run=client \
+13. -o yaml > untrusted-po.yaml --command -- /bin/sh -c "sleep 3600"
+
+14. # Edit Pod manifest to set nodeName and runtimeClassName
+15. vim untrusted-po.yaml
+
+  
+
+16. # untrusted-po.yaml
+17. apiVersion: v1
+18. kind: Pod
+19. metadata:
+20.   name: untrusted
+21.   labels:
+22.     run: untrusted
+23. spec:
+24.   nodeName: node-02
+25.   runtimeClassName: untrusted
+26.   containers:
+27.   - name: untrusted
+28.     image: alpine:3.18
+29.     command:
+30.     - /bin/sh
+31.     - -c
+32.     - sleep 3600
+33.     resources: {}
+
+  
+
+34. # Create the Pod
+35. kubectl create -f untrusted-po.yaml
+
+36. # Capture dmesg output from the running Pod
+37. kubectl exec untrusted > /opt/course/7/untrusted-test-dmesg -- dmesg
+
+  
+
+**Verification Step:**
+
+- Confirm the Pod is running on the correct node and runtime class:
+    
+
+1. kubectl get pod untrusted -o wide
+2. kubectl get pod untrusted -o jsonpath='{.spec.runtimeClassName}'
+
+  
+
+- Verify that /opt/course/7/untrusted-test-dmesg contains the dmesg output:
+    
+
+1. tail -f /opt/course/7/untrusted-test-dmesg
+
+  
+
+⚠️ Note:
+
+- Ensure gVisor (`runsc`) is installed and the RuntimeClass is supported on the cluster.
+    
+- `runtimeClassName` in the Pod spec determines which container runtime the Pod uses.
+    
+- `dmesg` output provides kernel-level messages useful for verifying runtime isolation.
+    
+
+  
+
+N/A
+
+**Resources**
+
+Domain
+
+Minimize Microservice Vulnerabilities (20%) ✅
+
+Question 8Correct
+
+Create a PodSecurityPolicy that blocks privileged Pods within a specific namespace.
+
+- Define a PodSecurityPolicy named `prevent-psp-policy` that disallows privileged containers.
+    
+- Set up a ClusterRole `restrict-access-role` that grants access to this policy.
+    
+- Add a ServiceAccount `psp-restrict-sa` inside the `staging` namespace.
+    
+- Bind the ClusterRole to the ServiceAccount using a ClusterRoleBinding `restrict-access-bind`.
+    
+
+
+
+solution
+
+#### Explanation
+
+Admission Controler `**PodSecurityPolicy**` must be enabled.
+
+PodSecurityPolicy (PSP) allows administrators to enforce security restrictions at the cluster level. In this task, the PSP is configured to prevent privileged Pods from running. The associated RBAC rules ensure that only the defined ServiceAccount in the `staging` namespace can use this policy.
+
+⚠️ Note: PSP is deprecated as of Kubernetes v1.25; for newer versions, Pod Security Admission, Kyverno, or OPA/Gatekeeper should be used.
+
+  
+
+**Commands / Steps:**
+
+  
+
+1. # Apply the PodSecurityPolicy
+2. kubectl create -f prevent-psp-policy.yaml
+
+  
+
+3. # prevent-psp-policy.yaml
+4. apiVersion: policy/v1beta1
+5. kind: PodSecurityPolicy
+6. metadata:
+7.   name: prevent-psp-policy
+8. spec:
+9.   privileged: false                # ❗ privileged containers running prohibition
+10.   allowPrivilegeEscalation: false
+11.   requiredDropCapabilities:
+12.     - ALL
+13.   volumes:
+14.     - configMap
+15.     - emptyDir
+16.     - projected
+17.     - secret
+18.     - downwardAPI
+19.     - persistentVolumeClaim
+20.   runAsUser:
+21.     rule: MustRunAsNonRoot
+22.   seLinux:
+23.     rule: RunAsAny
+24.   supplementalGroups:
+25.     rule: RunAsAny
+26.   fsGroup:
+27.     rule: RunAsAny
+28.   readOnlyRootFilesystem: true
+
+  
+
+29. # Create a ClusterRole that provides access to this PSP
+30. kubectl create clusterrole restrict-access-role \
+31.   --verb=use \
+32.   --resource=podsecuritypolicies.policy \
+33.   --resource-name=prevent-psp-policy \
+34.   --dry-run=client -o yaml | kubectl apply -f -
+
+  
+
+35. # ClusterRole definition
+36. apiVersion: rbac.authorization.k8s.io/v1
+37. kind: ClusterRole
+38. metadata:
+39.   name: restrict-access-role
+40. rules:
+41.   - apiGroups: ["policy"]
+42.     resources: ["podsecuritypolicies"]
+43.     verbs: ["use"]
+44.     resourceNames: ["prevent-psp-policy"]
+
+  
+
+45. # Create a ServiceAccount in the staging namespace
+46. kubectl create serviceaccount psp-restrict-sa -n staging
+
+  
+
+47. # ServiceAccount definition
+48. apiVersion: v1
+49. kind: ServiceAccount
+50. metadata:
+51.   name: psp-restrict-sa
+52.   namespace: staging
+
+  
+
+53. # Create a ClusterRoleBinding to bind the ServiceAccount to the ClusterRole
+54. kubectl create clusterrolebinding restrict-access-bind \
+55.   --clusterrole=restrict-access-role \
+56.   --serviceaccount=staging:psp-restrict-sa \
+57.   --dry-run=client -o yaml | kubectl apply -f -
+
+  
+
+58. # ClusterRoleBinding definition
+59. apiVersion: rbac.authorization.k8s.io/v1
+60. kind: ClusterRoleBinding
+61. metadata:
+62.   name: restrict-access-bind
+63. roleRef:
+64.   apiGroup: rbac.authorization.k8s.io
+65.   kind: ClusterRole
+66.   name: restrict-access-role
+67. subjects:
+68.   - kind: ServiceAccount
+69.     name: psp-restrict-sa
+70.     namespace: staging
+
+N/A
+
+**Resources**
+
+Domain
+
+Minimize Microservice Vulnerabilities (20%) ✅
+
+Question 9Correct
+
+Create a new Kubernetes user, approve its certificate, and assign namespace-specific permissions:
+
+- Create a user `john` and generate a Certificate Signing Request (CSR).
+    
+- Approve the CSR and retrieve the signed certificate.
+    
+- Create a Role `john-role` in namespace `john` to allow `list`, `get`, `create`, and `delete` on `pods` and `secrets`.
+    
+- Create a RoleBinding `john-role-binding` to attach the Role to user `john`.
+    
+- Verify permissions using `kubectl auth can-i`.
+    
+
+
+
+solution
+
+#### Explanation
+
+Kubernetes client authentication is certificate-based. This task demonstrates creating a user with a signed certificate, configuring kubeconfig, and enforcing namespace RBAC permissions.
+
+  
+
+**Commands / Steps:**
+
+  
+
+1. # Switch to root
+2. sudo -i
+
+3. # Create namespace for the user
+4. kubectl create namespace john
+
+5. # Generate private key and CSR for user john
+6. openssl genrsa -out john.key 3072
+7. openssl req -new -key john.key -out john.csr -subj "/CN=john/O=devs"
+
+8. # Encode CSR for Kubernetes
+9. cat john.csr | base64 | tr -d "\n"
+
+  
+
+10. # Create CSR object in Kubernetes
+11. cat <<EOF | kubectl apply -f -
+12. apiVersion: certificates.k8s.io/v1
+13. kind: CertificateSigningRequest
+14. metadata:
+15.   name: john-csr
+16. spec:
+17.   request: <base64-encoded-csr>
+18.   signerName: kubernetes.io/kube-apiserver-client
+19.   expirationSeconds: 86400
+20.   usages:
+21.   - client auth
+22. EOF
+
+  
+
+23. # Approve CSR
+24. kubectl get csr
+25. kubectl certificate approve john-csr
+
+  
+
+26. # Extract the certificate to a file
+27. kubectl get csr john-csr -o jsonpath='{.status.certificate}' | base64 -d -w 0 > john.crt
+
+  
+
+28. # Configure kubeconfig for john
+29. kubectl config set-credentials john \
+30.   --client-key=john.key \
+31.   --client-certificate=john.crt \
+32.   --embed-certs=true
+
+33. kubectl config set-context john@kubernetes \
+34.   --cluster=kubernetes \
+35.   --user=john \
+36.   --namespace=john
+
+  
+
+37. # Verify the user's identity
+38. kubectl --context john@kubernetes auth whoami
+
+  
+
+39. # Create Role and RoleBinding in namespace john
+40. kubectl create role john-role \ 
+41.   --verb=list,get,create,delete \
+42.   --resource=pods,secrets -n john
+
+43. kubectl create rolebinding john-role-binding \
+44.   --role=john-role \
+45.   --user=john \
+46.   -n john
+
+  
+
+47. # Verify permissions
+48. kubectl auth can-i create pods -n john --as john
+49. kubectl auth can-i create deployments -n john --as john
+
+  
+
+**Verification Step:**
+
+- Confirm the CSR was approved and certificate retrieved:
+    
+
+1. kubectl get csr john-csr -o yaml
+
+- Ensure user `john` can perform allowed actions (`pods`, `secrets`) and is denied forbidden actions (`deployments`):
+    
+
+1. kubectl auth can-i create pods -n john --as john  # should be "yes"
+2. kubectl auth can-i create deployments -n john --as john  # should be "no"
+
+  
+
+⚠️ Note:
+
+- The CN in the CSR identifies the username; O (organization) can be used for grouping.
+    
+- Always embed certificates in kubeconfig for easier access.
+    
+- Roles and RoleBindings are namespace-scoped; ClusterRoles are used for cluster-wide permissions.
+    
+
+N/A
+
+**Resources**
+
+Domain
+
+Cluster Hardening (15%) ✅
+
+Question 10Correct
+
+Deploy an Nginx Pod with TLS-enabled ingress in the `testing` namespace:
+
+- Create a TLS Secret from `bingo.crt` and `bingo.key`.
+    
+- Deploy a Pod named `nginx-pod` in the `testing` namespace.
+    
+- Expose the Pod with a Service.
+    
+- Create an Ingress using TLS (`bingo-tls`) with host `bingo.com`.
+    
+- Redirect all HTTP traffic to HTTPS.
+    
+
+
+
+solution
+
+#### Explanation
+
+TLS Secrets allow Kubernetes Ingress to terminate SSL/TLS traffic. Annotations on the Ingress ensure HTTP traffic is redirected to HTTPS. The Pod is exposed via a Service to be reachable through the Ingress.
+
+  
+
+**Commands / Steps:**
+
+  
+
+1. # Switch to root
+2. sudo -i
+
+3. # Create namespace
+4. kubectl create namespace testing
+
+5. # Create TLS secret
+6. kubectl create secret tls bingo-tls --cert=bingo.crt --key=bingo.key -n testing
+
+7. # Deploy Nginx Pod and expose port 80
+8. kubectl run nginx-pod -n testing --image=nginx --expose=true --port=80
+
+9. # Deploy NGINX Ingress Controller (example using cloud provider)
+10. kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.13.0/deploy/static/provider/cloud/deploy.yaml
+
+  
+
+11. # Generate ingress manifest with TLS and HTTP to HTTPS redirection
+12. kubectl create ingress bingo-com \
+13.   --rule=bingo.com/=nginx-pod:80,tls=bingo-tls -n testing \
+14.   --annotation nginx.ingress.kubernetes.io/ssl-redirect="true" \
+15.   --annotation nginx.ingress.kubernetes.io/force-ssl-redirect="true" \
+16.   --dry-run=client -o yaml > bingo-ingress.yaml
+
+17. # Edit ingress if necessary
+18. vim bingo-ingress.yaml
+
+  
+
+19. # bingo-ingress.yaml
+20. apiVersion: networking.k8s.io/v1
+21. kind: Ingress
+22. metadata:
+23.   name: bingo-com
+24.   namespace: testing
+25.   annotations:
+26.     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+27.     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+28. spec:
+29.   rules:
+30.   - host: bingo.com
+31.     http:
+32.       paths:
+33.       - path: /
+34.         pathType: Prefix
+35.         backend:
+36.           service:
+37.             name: nginx-pod
+38.             port:
+39.               number: 80
+40.   tls:
+41.   - hosts:
+42.     - bingo.com
+43.     secretName: bingo-tls
+
+  
+
+44. # Apply the ingress
+45. kubectl apply -f bingo-ingress.yaml
+
+46. # Verify the service of the ingress controller
+47. kubectl get svc -n ingress-nginx
+
+  
+
+**Verification Step:**
+
+- Confirm the Ingress is created and listening on TLS:
+    
+
+1. kubectl get ingress -n testing
+2. kubectl describe ingress bingo-com -n testing
+
+- Test redirection from HTTP to HTTPS:
+    
+
+1. curl -I http://bingo.com
+
+- Verify TLS termination using the created Secret and that traffic reaches the `nginx-pod`.
+    
+      
+    
+
+N/A
+
+**Resources**
+
+Domain
+
+Cluster Setup (15%) ✅
+
+Question 11Correct
+
+A CIS Benchmark scan revealed multiple violations on the API server, Kubelet, and etcd. Fix all findings by updating configuration files and restarting affected components.
+
+**Violations to fix:**
+
+- **API Server**
+    
+    - `authorization-mode` must not be `AlwaysAllow`.
+        
+    - Must include `Node`.
+        
+    - Must include `RBAC`.
+        
+- **Kubelet**
+    
+    - Anonymous authentication must be disabled.
+        
+    - Authorization mode must not be `AlwaysAllow`; should use `Webhook`.
+        
+- **etcd**
+    
+    - `--client-cert-auth` must be enabled.
+        
+    - `--auto-tls` must not be enabled.
+        
+    - Use valid TLS certificates (not self-signed).
+        
+
+
+
+solution
+
+#### Explanation
+
+- The API server controls cluster authentication/authorization. CIS requires strict authorization modes (`Node`, `RBAC`).
+    
+- The Kubelet must not allow unauthenticated access; it should authenticate via the API server (Webhook).
+    
+- etcd is critical for Kubernetes state storage and must enforce TLS + client certificate authentication.
+    
+
+  
+
+**Steps**
+
+**1. Fix API Server configuration**
+
+  
+
+1. vim /etc/kubernetes/manifests/kube-apiserver.yaml
+
+  
+
+2. # /etc/kubernetes/manifests/kube-apiserver.yaml (flags section)
+3. - --authorization-mode=Node,RBAC
+
+  
+
+4. ✅ Removed AlwaysAllow.
+5. ✅ Added Node and RBAC.
+6. The static pod will restart automatically after saving.
+
+  
+
+**2. Fix Kubelet configuration**
+
+  
+
+1. ps -ef | grep kubelet   # locate kubelet config file path
+2. vim /var/lib/kubelet/config.yaml
+
+  
+
+3. # /var/lib/kubelet/config.yaml
+4. apiVersion: kubelet.config.k8s.io/v1beta1
+5. kind: KubeletConfiguration
+6. authentication:
+7.   anonymous:
+8.     enabled: false          # 🔒 Disable anonymous auth
+9.   webhook:
+10.     enabled: true           # ✅ Enable API server webhook
+11.   x509:
+12.     clientCAFile: /etc/kubernetes/pki/ca.crt
+13. authorization:
+14.   mode: Webhook             # 🔐 Use centralized authorization
+
+  
+
+15. ✅ Disabled anonymous authentication.
+16. ✅ Set authorization mode to Webhook.
+
+  
+
+17. # Reload and restart Kubelet:
+18. systemctl daemon-reload
+19. systemctl restart kubelet
+20. systemctl status kubelet
+
+  
+
+**3. Fix etcd configuration**
+
+  
+
+1. vim /etc/kubernetes/manifests/etcd.yaml
+
+  
+
+2. # /etc/kubernetes/manifests/etcd.yaml (flags section)
+3. - --cert-file=/etc/kubernetes/pki/etcd/server.crt
+4. - --key-file=/etc/kubernetes/pki/etcd/server.key
+5. - --client-cert-auth=true         # ✅ Enforce client cert auth
+6. - --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt
+7. - --peer-key-file=/etc/kubernetes/pki/etcd/peer.key
+8. - --peer-client-cert-auth=true    # ✅ Mutual peer authentication
+9. - --auto-tls=false                # ❌ Do not auto-generate TLS
+
+  
+
+10. ✅ Enabled client cert auth.
+11. ✅ Enabled peer client cert auth.
+12. ✅ Disabled auto-tls.
+13. Ensure etcd is using `valid CA-signed` certs stored in /etc/kubernetes/pki/etcd/.
+14. Static pod will restart automatically after saving.
+
+  
+
+**4. Verify CIS compliance**
+
+  
+
+1. # Check API Server flags
+2. ps -ef | grep kube-apiserver | grep authorization-mode
+
+3. # Should show `Node,RBAC`:
+
+4. --authorization-mode=Node,RBAC
+
+  
+
+5. # Check Kubelet config
+6. curl -sk https://127.0.0.1:10250/metrics | head -n 5
+
+7. Should `fail` without auth
+
+  
+
+8. kubectl get --raw /api/v1/nodes | jq .
+
+9. Should work (via authenticated request)
+
+  
+
+10. # Check etcd flags
+11. ps -ef | grep etcd | grep cert
+
+12. Should include `--client-cert-auth=true` and `--auto-tls=false`
+
+  
+
+13. # Rerun CIS scan kube-bench
+14. kube-bench run --targets=master,node,etcd
+
+  
+
+15. - target master — checks kube-apiserver, kube-controller-manager, scheduler, etcd, kubelet (on master)
+16. - target node — checks kubelet, kube-proxy, cni (on nodes)
+17. - target etcd — checks etcd (certs, access, etc)
+
+18. Expected: ✅ all listed violations resolved.
+19. Should show `PASS` for all findings.
+
+  
+
+⚠️ Note:
+
+- `AlwaysAllow` is insecure and must not be used.
+    
+- `Node` ensures kubelet-to-apiserver communication authorization.
+    
+- `RBAC` enforces role-based access control for users and workloads.
+    
+- `etcd` without TLS is a critical security risk — certificates are mandatory
+    
+
+  
+
+N/A
+
+**Resources**
+
+Domain
+
+Cluster Setup (15%) ✅
+
+Question 12Correct
+
+- Retrieve the contents of the existing secret `admin` in the `safe` namespace.
+    
+- Store the fields into local files:
+    
+    - `username` → `/home/cert-masters/username.txt`
+        
+    - `password` → `/home/cert-masters/password.txt`
+        
+- Create a new secret `newsecret` in the `safe` namespace with credentials:
+    
+    - username: `dbadmin`
+        
+    - password: `moresecurepas`
+        
+- Create a new pod that mounts this new secret.
+    
+
+**Constraints:**
+
+- Both files must be created (they do not exist initially).
+    
+- Do not reuse these files for later steps — create new resources independently.
+    
+
+
+
+solution
+
+#### Explanation
+
+**1. Extract existing secret values**
+
+  
+
+1. # Extract username into file
+2. kubectl get secret admin -n safe \
+3.   -o jsonpath='{.data.username}' | base64 -d \
+4.   > /home/cert-masters/username.txt
+
+5. # Extract password into file
+6. kubectl get secret admin -n safe \
+7.   -o jsonpath='{.data.password}' | base64 -d \
+8.   > /home/cert-masters/password.txt
+
+  
+
+**2. Create new secret**
+
+  
+
+1. kubectl create secret generic newsecret \
+2.   --from-literal=username=dbadmin \
+3.   --from-literal=password=moresecurepas \
+4.   -n safe
+
+5. # Verify secret
+6. kubectl get secret newsecret -n safe -o yaml
+
+  
+
+**3. Create Pod manifest using the secret**
+
+  
+
+1. # pod-secret.yaml
+2. apiVersion: v1
+3. kind: Pod
+4. metadata:
+5.   name: mysecret-pod
+6.   namespace: safe
+7. spec:
+8.   containers:
+9.   - name: db-container
+10.     image: redis
+11.     volumeMounts:
+12.     - name: secret-vol
+13.       mountPath: /etc/mysecret
+14.       readOnly: true
+15.   volumes:
+16.   - name: secret-vol
+17.     secret:
+18.       secretName: newsecret
+
+  
+
+19. kubectl apply -f pod-secret.yaml
+
+  
+
+**Verification Step:**
+
+- Check created files
+    
+
+1. cat /home/cert-masters/username.txt
+2. cat /home/cert-masters/password.txt
+
+- Check pod status
+    
+
+1. kubectl get pods -n safe
+
+- Check mounted secret
+    
+
+1. kubectl exec -it mysecret-pod -n safe -- ls /etc/mysecret
+2. kubectl exec -it mysecret-pod -n safe -- cat /etc/mysecret/username
+3. kubectl exec -it mysecret-pod -n safe -- cat /etc/mysecret/password
+
+N/A
+
+**Resources**
+
+Domain
+
+Minimize Microservice Vulnerabilities (20%) ✅
+
+Question 13Correct
+
+Identify a service running on port 389, list all its open files, and remove the binary:
+
+- Find the process ID (PID) of the service listening on port 389.
+    
+- Store the list of all open files of the process in `/candidate/13/files.txt`.
+    
+- Locate the executable binary of the process and delete it.
+    
+
+
+
+solution
+
+#### Explanation
+
+Port 389 typically belongs to an LDAP service (`slapd`). Using tools like `netstat`, `ss`, or `lsof`, you can find the PID. The `/proc/<PID>/fd` directory contains all open file descriptors. The binary path can be obtained from `/proc/<PID>/exe`.
+
+  
+
+**Commands / Steps:**
+
+  
+
+1. # Switch to root
+2. sudo -i
+
+3. # Find the PID of the process listening on port 389
+4. netstat -tulpn | grep :389
+5. # or
+6. ss -tulpn | grep :389
+7. # or
+8. lsof -i :389
+
+  
+
+9. # Example output:
+10. tcp   LISTEN  0  128  0.0.0.0:389   0.0.0.0:*  users:(("slapd",pid=1234,fd=9))
+
+  
+
+11. # List all open files for the process and save to file
+12. ls -l /proc/1234/fd > /candidate/13/files.txt
+13. # or with real file paths
+14. ls -l /proc/1234/fd | awk '{print $NF}' > /candidate/13/files.txt
+15. # or using readlink for absolute paths
+16. readlink -f /proc/1234/fd/* > /candidate/13/files.txt
+
+17. # Find the path to the executable binary
+18. readlink -f /proc/1234/exe
+19. # or
+20. ls -l /proc/1234/exe
+21. # or
+22. ps -fp 1234
+
+23. # Suppose the binary is /usr/sbin/slapd, stop and delete it
+24. kill -9 1234
+25. rm -f /usr/sbin/slapd
+
+  
+
+**Verification Step:**
+
+- Confirm the process is stopped and the binary is deleted:
+    
+
+1. top -p 1234
+2. ps -p 1234
+3. ls -l /usr/sbin/slapd
+
+- Check that /candidate/11/files.txt contains all previously opened files:
+    
+
+1. cat /candidate/13/files.txt
+
+  
+
+⚠️ Note:
+
+- Use caution when killing and deleting system binaries; this is destructive.
+    
+- `/proc/<PID>/fd` contains symbolic links to all open file descriptors for the process.
+    
+- Ensure you have sufficient privileges (`sudo`) to access `/proc` and remove binaries.
+    
+      
+    
+
+N/A
+
+**Resources**
+
+Domain
+
+System Hardening (10%) ✅
+
+Question 14Correct
+
+- Modify the existing `Role` bound to ServiceAccount `sa-dev-1` (used by Pod `web-pod` in namespace `security`) to allow **only** `**watch**` **on** `**services**`.
+    
+- Create a new `ClusterRole` `role-2` to allow **only** `**update**` **on** `**namespaces**`.
+    
+- Bind it via a `ClusterRoleBinding` named `role-2-binding` to the ServiceAccount `sa-dev-1`.
+    
+
+
+
+solution
+
+#### Explanation
+
+**Step 1: Identify the Role bound to ServiceAccount**
+
+  
+
+1. kubectl get rolebindings -n security -o yaml \
+2. | grep sa-dev-1 -B 20 | grep -i roleref -A 3
+
+3. kubectl get rolebindings -n security -o wide | grep sa-dev-1
+
+  
+
+**Step 2: Edit the existing Role (example: role-1)**
+
+  
+
+1. kubectl edit role role-1 -n security
+
+2. rules:
+3. - apiGroups: [""]
+4.   resources: ["services"]
+5.   verbs: ["watch"]
+
+  
+
+**Step 3: Create a new ClusterRole**
+
+  
+
+1. kubectl create clusterrole role-2 --verb=update --resource=namespaces
+
+2. apiVersion: rbac.authorization.k8s.io/v1
+3. kind: ClusterRole
+4. metadata:
+5.   name: role-2
+6. rules:
+7. - apiGroups: [""]
+8.   resources: ["namespaces"]
+9.   verbs: ["update"]
+
+  
+
+**Step 4: Create ClusterRoleBinding**
+
+  
+
+1. kubectl create clusterrolebinding role-2-binding \
+2.   --clusterrole=role-2 \
+3.   --serviceaccount=security:sa-dev-1
+
+4. apiVersion: rbac.authorization.k8s.io/v1
+5. kind: ClusterRoleBinding
+6. metadata:
+7.   name: role-2-binding
+8. subjects:
+9. - kind: ServiceAccount
+10.   name: sa-dev-1
+11.   namespace: security
+12. roleRef:
+13.   kind: ClusterRole
+14.   name: role-2
+15.   apiGroup: rbac.authorization.k8s.io
+
+  
+
+**Verification Step:**
+
+  
+
+1. # Check Role permissions
+2. kubectl auth can-i watch services \
+3. --as=system:serviceaccount:security:sa-dev-1 -n security
+
+4. # Check ClusterRole permissions
+5. kubectl auth can-i update namespaces \
+6. --as=system:serviceaccount:security:sa-dev-1
+
+  
+
+**Expected:**
+
+- ServiceAccount `sa-dev-1` can `watch` services in namespace `security`.
+    
+
+- ServiceAccount `sa-dev-1` can `update` namespaces `cluster-wide`.
+    
+      
+    
+
+N/A
+
+**Resources**
+
+Domain
+
+Cluster Hardening (15%) ✅
+
+Question 15Correct
+
+- A Pod `token-demo` is running in the `default` namespace and uses the default mounted token.
+    
+- Modify the default `ServiceAccount` to disable automatic token mounting (`automountServiceAccountToken: false`).
+    
+- Edit the Pod to:
+    
+    - Use this ServiceAccount.
+        
+    - Mount a **projected volume** with the ServiceAccount token manually at `/var/run/secrets/tokens/token.jwt`.
+        
+
+
+
+solution
+
+#### Explanation
+
+**Step 1: Edit the default ServiceAccount**
+
+  
+
+1. kubectl edit sa default -n default
+
+2. ---
+3. apiVersion: v1
+4. kind: ServiceAccount
+5. metadata:
+6.   name: default
+7.   namespace: default
+8. automountServiceAccountToken: false  # add this line
+
+  
+
+**Step 2: Edit the Pod**
+
+  
+
+1. kubectl edit pod token-demo -n default
+
+2. ---
+3. apiVersion: v1
+4. kind: Pod
+5. metadata:
+6.   name: token-demo
+7.   namespace: default
+8. spec:
+9.   serviceAccountName: default              # check serviceAccountName here
+10.   containers:
+11.   - name: nginx
+12.     image: nginx
+13.     volumeMounts:
+14.     - name: token-vol
+15.       mountPath: /var/run/secrets/tokens   # change the volume mountpath
+16.       readOnly: true
+17.   volumes:
+18.   - name: token-vol                        # add projected volume here
+19.     projected:
+20.       sources:
+21.       - serviceAccountToken:
+22.           path: token.jwt
+23.           expirationSeconds: 600
+24.           audience: https://kubernetes.default.svc.cluster.local
+25. ---
+
+26. # audience is an optional field here, is set by default in this case and you can erase/skip this line
+
+27. # however if you want to specify the audience, check the kube-apiserver has 
+28. `- --service-account-issuer=https://kubernetes.default.svc.cluster.local` parameter set
+
+29. # so that you can specify audience explicitly like it is here:
+30. `audience: https://kubernetes.default.svc.cluster.local`
+
+  
+
+**Step 3: kube-apiserver configuration**
+
+- Check that the kube-apiserver manifest (`/etc/kubernetes/manifests/kube-apiserver.yaml`) includes ServiceAccount issuer and signing options:
+    
+      
+    
+
+1. - --service-account-issuer=https://kubernetes.default.svc.cluster.local
+2. - --service-account-key-file=/etc/kubernetes/pki/sa.pub
+3. - --service-account-signing-key-file=/etc/kubernetes/pki/sa.key
+
+  
+
+**Verification Step:**
+
+  
+
+1. kubectl exec -it token-demo -- bash
+2. cat /var/run/secrets/tokens/token.jwt
+3. TOKEN=$(cat /var/run/secrets/tokens/token.jwt)
+4. curl -sSk -H "Authorization: Bearer $TOKEN" https://kubernetes.default.svc/api
+
+5. # Expected response should include available API versions
+6. {
+7.   "kind": "APIVersions",
+8.   "versions": [
+9.     "v1"
+10.   ],
+11.   "serverAddressByClientCIDRs": [
+12.     {
+13.       "clientCIDR": "0.0.0.0/0",
+14.       "serverAddress": "172.16.0.2:6443"
+15.     }
+16.   ]
+17. }
+
+  
+
+**Explanation:**
+
+- Setting `automountServiceAccountToken: false` prevents automatic token mounting for Pods using the `default` ServiceAccount.
+    
+- A `projected ServiceAccount token volume` allows more fine-grained control, such as custom expiration and audience.
+    
+- `Audience` ensures that the token is only valid for the intended service (here: the Kubernetes API server).
+    
+- If the `--api-audiences` flag is not explicitly set, the default audience is the value of `--service-account-issuer`
+    
+
+  
+
+**More info:**
+
+- The `--api-audiences` flag on the Kubernetes API server defines the valid audiences for ServiceAccount tokens used to authenticate with the API server.
+    
+- When a ServiceAccount token is presented to the API server, the API server validates that the token's audience claim matches at least one of the audiences specified by `--api-audiences`.
+    
+
+**_Default Audience:_**
+
+- If the `--api-audiences` flag is not explicitly set, and the `--service-account-issuer` command-line argument is specified, the Kubernetes API server defaults to a single-element audience list containing only the issuer URL.
+    
+- This means that by default, ServiceAccount tokens are expected to have the issuer URL as their audience.
+    
+
+**_Example:_**
+
+- If your `--service-account-issuer` is `https://kubernetes.default.svc.cluster.local`, then the default audience for ServiceAccount tokens would be `https://kubernetes.default.svc.cluster.local`.
+    
+
+**_Purpose of Audiences:_**
+
+- Audiences are a security mechanism used to prevent token replay attacks and ensure that a token is only used by its intended recipient.
+    
+- By specifying audiences, you ensure that a ServiceAccount token issued for a specific purpose (e.g., accessing the Kubernetes API) cannot be misused by another service or application that is not the intended audience.
+    
+
+N/A
+
+**Resources**
+
+Domain
+
+Cluster Hardening (15%) ✅
+
+Question 16Correct
+
+- Integrate the cluster’s container image scanner to reject vulnerable images.
+    
+- Configure the ImagePolicyWebhook admission plugin with HTTPS endpoint `https://valhalla.local:8081/image_policy`.
+    
+- Enforce implicit deny for images not explicitly allowed.
+    
+- Test using `/root/16/vulnerable-resource.yaml`.
+    
+- File path to the webhook configuration: `/etc/kubernetes/imgconfig/`.
+    
+
+
+
+solution
+
+#### Explanation
+
+**Step 1: Enable the ImagePolicyWebhook plugin**
+
+  
+
+1. ls /etc/kubernetes/imgconfig/
+
+- Expected output:
+    
+
+1. admission_configuration.yaml apiserver-client-key.pem apiserver-client.pem kubeconfig.yaml webhook-key.pem webhook.pem imagepolicyconfig.yaml
+
+  
+
+Edit `/etc/kubernetes/imgconfig/admission_configuration.yaml`:
+
+  
+
+1. ---
+2. apiVersion: apiserver.config.k8s.io/v1
+3. kind: AdmissionConfiguration
+4. plugins:
+5.   - name: ImagePolicyWebhook
+6.     path: /etc/kubernetes/imgconfig/imgepolicyconfig.yaml 
+7. ---
+8. # the path should be the absolute path not just imagepolicyconfig.yaml
+
+  
+
+**Step 2: Configure the ImagePolicyWebhook admission plugin**
+
+  
+
+Edit `/etc/kubernetes/imgconfig/imgepolicyconfig.yaml`:
+
+  
+
+1. imagePolicy:
+2.   kubeConfigFile: /etc/kubernetes/imgconfig/kubeconfig.yaml
+3.   allowTTL: 50
+4.   denyTTL: 50
+5.   retryBackoff: 500
+6.   defaultAllow: false    # Implicit deny for all images not allowed
+
+  
+
+**Step 3: Configure webhook endpoint in kubeconfig**
+
+  
+
+Edit `/etc/kubernetes/imgconfig/kubeconfig.yaml`:
+
+  
+
+1. apiVersion: v1
+2. kind: Config
+3. clusters:
+4. - name: valhalla-scan
+5.   cluster:
+6.     certificate-authority: /etc/kubernetes/imgconfig/webhook.pem
+7.     server: https://valhalla.local:8081/image_policy               
+8. users:
+9. - name: apiserver
+10.   user:
+11.     client-certificate: /etc/kubernetes/imgconfig/apiserver-client.pem   
+12.     client-key: /etc/kubernetes/imgconfig/apiserver-client-key.pem
+13. contexts:
+14. - name: webhook-context
+15.   context:
+16.     cluster: valhalla-scan
+17.     user: apiserver
+18. current-context: webhook-context
+
+  
+
+**Step 4: Enable admission plugin in kube-apiserver**
+
+  
+
+Edit `/etc/kubernetes/manifests/kube-apiserver.yaml`:
+
+  
+
+1. apiVersion: v1
+2. kind: Pod
+3. metadata:
+4.   name: kube-apiserver
+5.   namespace: kube-system
+6. spec:
+7.   containers:
+8.   - name: kube-apiserver
+9.     command:
+10.     - kube-apiserver
+11.     - --admission-control=NodeRestriction,ImagePolicyWebhook                                 
+12.     - --admission-control-config-file=/etc/kubernetes/imgconfig/admission_configuration.yaml
+13.     volumeMounts:
+14.     - name: image-policy-config
+15.       mountPath: /etc/kubernetes/imgconfig
+16.       readOnly: true
+17.   volumes:
+18.   - name: image-policy-config
+19.     hostPath:
+20.       path: /etc/kubernetes/imgconfig
+21.       type: DirectoryOrCreate
+
+  
+
+**Step 5: Test the configuration**
+
+  
+
+Test using `/root/16/vulnerable-resource.yaml`:
+
+  
+
+1. ---
+2. apiVersion: v1
+3. kind: ReplicationController
+4. metadata:
+5.   labels:
+6.     app: nginx-latest
+7.   name: nginx-latest
+8. spec:
+9.   replicas: 1
+10.   template:
+11.     metadata:
+12.       labels:
+13.         app: nginx-latest
+14.     spec:
+15.       containers:
+16.       - image: nginx
+17.         name: nginx-latest
+18.         ports:
+19.         - containerPort: 80
+20. ---
+
+21. kubectl apply -f /root/16/vulnerable-resource.yaml
+
+  
+
+22. kubectl describe rc nginx-latest
+
+  
+
+- Expected output:
+    
+
+1. Warning  FailedCreate  2m19s                
+2. replication-controller  Error creating: pods "nginx-latest-k5fwg" is forbidden: 
+3. image policy webhook backend denied one or more images: Images using latest tag are not allowed
+
+  
+
+**Troubleshooting if kube-apiserver fails:**
+
+  
+
+1. crictl ps -a | grep kube-api
+2. journalctl -u kubelet -f
+3. systemctl restart kubelet
+4. kubectl -n kube-system logs -l component=kube-apiserver
+
+  
+
+⚠️ Note:
+
+- `defaultAllow`: false ensures `implicit deny` for any images not explicitly approved.
+    
+- HTTPS endpoint ensures secure communication between API server and the image policy webhook.
+    
+- Testing with a vulnerable image (e.g., `latest` tag) confirms the webhook is functional.
+    
+
+N/A
+
+**Resources**
+
+Domain
+
+Supply Chain Security (20%) ✅
