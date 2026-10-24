@@ -1,0 +1,15 @@
+{
+  "lab": "cks-005",
+  "name": "CKS Practice Lab - Kubernetes Security - 5",
+  "description": "Image signing with cosign, strace, Istio authorization, Pod Security admission defaults, kubelet seccomp, RBAC audit and audit log forensics",
+  "difficulty": "Hard",
+  "warmUpTimeInSeconds": 260,
+  "examDurationInMinutes": 120,
+  "workerNodes": 1,
+  "answers": "assets/exams/cks-reddit/005/answers.md",
+  "questions": "assessment.json",
+  "totalMarks": 100,
+  "lowScore": 40,
+  "mediumScore": 60,
+  "highScore": 90
+}

@@ -1,0 +1,692 @@
+
+Certified Kubernetes Security Specialist (CKS) – Practice Test 4 - Results
+Attempt 1
+
+Question 1Correct
+
+A Deployment docker-admin in namespace sandbox mounts /var/run/docker.sock from the host.
+This gives the container full control over the Docker daemon, which allows privilege escalation.
+
+Instead of removing the Pod entirely, your task is to reduce the risk by restricting its permissions using Kubernetes security mechanisms.
+Specifically, you should:
+
+    Ensure the Pod does not run as root.
+
+    Drop all Linux capabilities except those required.
+
+    Enforce read-only filesystem where possible.
+
+Your answer is correct
+
+solution
+Explanation
+
+Commands/Steps
+
+
+Step 1: Inspect the Pod for docker.sock mount
+
+
+    kubectl get pods -n sandbox -o yaml | grep -A 3 "docker.sock"
+    kubectl describe pod <pod-name> -n sandbox
+
+
+Step 2: Edit Deployment to apply securityContext
+
+
+    kubectl edit deploy docker-admin -n sandbox
+
+
+Modify the spec.template.spec.containers.securityContext section:
+
+
+    spec:
+      template:
+        spec:
+          containers:
+          - name: docker-container
+            image: docker:20.10
+            securityContext:
+              runAsUser: 65535           # run as unprivileged user
+              runAsGroup: 65535
+              readOnlyRootFilesystem: true
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]             # drop all Linux capabilities
+
+
+Step 3: Optionally, restrict hostPath mount
+
+
+If docker.sock must be present for functionality, mark it read-only:
+
+
+    spec:
+      template:
+        spec:
+          containers:
+          - name: docker-container
+            image: docker:20.10
+            volumeMounts:
+            - name: dockersock
+              mountPath: /var/run/docker.sock
+              readOnly: true
+
+
+Step 4: Verify the changes
+
+
+    # Confirm the Pod is recreated
+    kubectl rollout status deploy/docker-admin -n sandbox
+    # Confirm securityContext applied
+    kubectl get pod -n sandbox <pod-name> -o jsonpath='{.spec.containers[0].securityContext}'
+
+    # Confirm read-only filesystem
+    kubectl exec -it <pod-name> -- touch /tmp/testfile   # should fail
+
+    # Confirm Docker socket read-only
+    kubectl exec -it <pod-name> -- docker ps            # should work
+    kubectl exec -it <pod-name> -- docker run ...       # should fail if read-only mount
+
+
+Explanation
+
+    runAsUser / runAsGroup: prevents the container from running as root, limiting access to host resources.
+
+    readOnlyRootFilesystem: prevents write access to the container filesystem.
+
+    allowPrivilegeEscalation: false: ensures the container cannot gain more privileges than its initial UID.
+
+    Drop ALL capabilities: prevents direct kernel-level operations; only minimal capabilities remain.
+
+    docker.sock read-only: limits ability to modify containers, still allows reading logs or status.
+
+
+⚠️ Note:
+
+    Even with these mitigations, mounting docker.sock is inherently risky. In real environments, prefer Docker-in-Docker or remote API with TLS, not host socket.
+
+
+N/A
+Resources
+Domain
+Minimize Microservice Vulnerabilities (20%) ✅
+Question 2Correct
+
+You have an existing Pod named nginx-pod in the test-system namespace.
+
+Fetch its ServiceAccount name and save it to a file /candidate/sa-name.txt.
+
+Then, create a Role in the same namespace that can list, get, and watch Deployments, and bind it to the Pod's ServiceAccount.
+Your answer is correct
+
+solution
+Explanation
+
+The ServiceAccount associated with a Pod determines which permissions it has.
+
+By creating a Role scoped to Deployments and binding it to the ServiceAccount, we grant the Pod the necessary access without granting cluster-wide permissions.
+
+
+Commands / Steps
+
+
+    # Fetch the ServiceAccount used by nginx-pod
+    kubectl get pods -n test-system nginx-pod -o yaml \
+    | grep -i serviceAccount
+
+    # Save the ServiceAccount name to a file
+    echo "sa-dev-1" > /candidate/sa-name.txt
+
+    # Create a Role with permissions to list, get, and watch Deployments
+    kubectl create role dev-test-role -n test-system --verb=get,list,watch \
+    --resource=deployments
+
+    # Create a RoleBinding to bind the Role to the Pod's ServiceAccount
+    kubectl create rolebinding dev-test-role-binding --role=dev-test-role \
+    --serviceaccount=test-system:sa-dev-1 -n test-system
+
+
+⚠️Note:
+
+    Ensure the RoleBinding references the correct namespace and ServiceAccount.
+
+    This grants permissions only within test-system namespace (namespace-scoped Role)
+
+N/A
+Resources
+Domain
+Cluster Hardening (15%) ✅
+Question 3Correct
+
+Review a Dockerfile based on ubuntu:20.04 and a Kubernetes Deployment manifest.
+
+Fix two prominent security/best-practice issues in each file at /home/manifests without adding or removing other configuration.
+
+Use an unprivileged user nobody with UID 65535 where needed.
+
+
+Given files
+
+
+Dockerfile
+
+
+    FROM ubuntu:latest
+    RUN apt-get update && \
+        apt-get install -y --no-install-recommends ca-certificates curl && \
+        rm -rf /var/lib/apt/lists/*
+    WORKDIR /app
+    COPY app /app
+    RUN chmod -R a+rX /app
+    USER root
+    CMD ["./start.sh"]
+
+
+Deployment manifest
+
+
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app: kafka
+      name: kafka
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: kafka
+      template:
+        metadata:
+          labels:
+            app: kafka
+        spec:
+          containers:
+          - image: bitnami/kafka
+            name: kafka
+            volumeMounts:
+            - mountPath: /opt/bitnami/kafka/bin
+              name: kafka-vol
+            securityContext:
+              capabilities:
+                add: ["NET_ADMIN"]
+                drop: ["ALL"]
+              privileged: true
+              readOnlyRootFilesystem: false
+              runAsUser: 0
+            resources: {}
+          volumes:
+          - name: kafka-vol
+            hostPath:
+              path: /
+
+
+Your answer is correct
+
+solution
+Explanation
+
+Commands / Steps
+
+
+Edit Dockerfile
+
+
+    vim /home/manifests/Dockerfile
+
+
+    FROM ubuntu:20.04      # ✅ Fixed: use specific version instead of latest
+    RUN apt-get update && \
+        apt-get install -y --no-install-recommends ca-certificates curl && \
+        rm -rf /var/lib/apt/lists/*
+    WORKDIR /app
+    COPY app /app
+    RUN chmod -R a+rX /app
+    USER root              # ✅ Fixed: run container as unprivileged user
+    CMD ["./start.sh"]
+
+
+Edit Deployment manifest
+
+
+    vim /home/manifests/deployment.yaml
+
+
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app: kafka
+      name: kafka
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: kafka
+      template:
+        metadata:
+          labels:
+            app: kafka
+        spec:
+          containers:
+          - image: bitnami/kafka
+            name: kafka
+            volumeMounts:
+            - mountPath: /opt/bitnami/kafka/bin
+              name: kafka-vol
+            securityContext:
+              capabilities:
+                add: ["NET_ADMIN"]
+                drop: ["ALL"]
+              privileged: false            # ✅ Fixed: avoid privileged container
+              readOnlyRootFilesystem: true # ✅ Fixed: enforce read-only FS
+              runAsUser: 65535             # ✅ Fixed: run as unprivileged user
+            resources: {}
+          volumes:
+          - name: kafka-vol
+            hostPath:
+              path: /
+
+
+Verification Step:
+
+    # Check container user in Dockerfile
+    docker build -t test-app /home/manifests
+    docker run --rm -it test-app id
+
+    # Check Deployment securityContext
+    kubectl get deploy kafka -o yaml | grep -A 5 securityContext
+
+N/A
+Resources
+Domain
+System Hardening (10%) ✅
+Question 4Correct
+
+Create a new ServiceAccount backend-sa in the default namespace that can list Pods.
+
+Deploy a Pod backend-pod using this ServiceAccount and verify it can list all Pods in the default namespace.
+Your answer is correct
+
+solution
+Explanation
+
+To allow a Pod to list Pods, we need a Role with get and list permissions on the Pod resource, then bind it to the ServiceAccount via a RoleBinding.
+Mount the ServiceAccount in the Pod to allow it to inherit these permissions.
+
+
+Commands / Steps
+
+
+    # Create the ServiceAccount
+    kubectl create serviceaccount backend-sa -n default
+
+    # Create a Role with permission to list/get Pods
+    kubectl create role pod-reader --verb=list,get --resource=pods -n default
+
+    # Bind the Role to the ServiceAccount
+    kubectl create rolebinding pod-reader-binding --role=pod-reader --serviceaccount=default:backend-sa -n default
+
+
+    # role.yaml
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: pod-reader
+      namespace: default
+    rules:
+      - apiGroups: [""]
+        resources: ["pods"]
+        verbs: ["get", "list"]
+    ---
+    # rolebinding.yaml
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: pod-reader-binding
+      namespace: default
+    subjects:
+      - kind: ServiceAccount
+        name: backend-sa
+        namespace: default
+    roleRef:
+      kind: Role
+      name: pod-reader
+      apiGroup: rbac.authorization.k8s.io
+
+
+    # pod.yaml
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: backend-pod
+      namespace: default
+    spec:
+      serviceAccountName: backend-sa
+      containers:
+      - name: busybox
+        image: bitnami/kubectl:latest
+        command:
+          - /bin/sh
+          - -c
+          - "kubectl get pods --namespace=default && sleep 3600"
+
+
+    # Deploy the Pod
+    kubectl apply -f pod.yaml
+
+    # Verify Pod is running
+    kubectl get pod backend-pod -n default
+
+    # Exec into the Pod to confirm it can list Pods
+    kubectl exec -it backend-pod -n default -- sh -c "kubectl get pods -n default"
+
+
+Verification Step:
+
+    # The above exec command should output a list of Pods in the default namespace.
+
+
+⚠️ Note:
+
+    Using bitnami/kubectl image allows running kubectl commands directly inside the Pod.
+
+    Role and RoleBinding are namespace-scoped; no cluster-wide permissions are granted.
+
+    The sleep 3600 command keeps the Pod running for testing purposes.
+
+N/A
+Resources
+Domain
+Cluster Hardening (15%) ✅
+Question 5Correct
+
+Create a NetworkPolicy named allow-np that:
+
+    Allows Pods in namespace staging to connect to port 80 of other Pods in the same namespace.
+
+    Denies traffic to Pods not listening on port 80.
+
+    Denies traffic from Pods outside of staging namespace.
+
+Your answer is correct
+
+solution
+Explanation
+
+Create manifest
+
+
+    vim allow-np.yaml
+
+
+    ---
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-np
+      namespace: staging
+    spec:
+      podSelector: {}                 # applies to all pods in the namespace
+      policyTypes:
+      - Ingress
+      ingress:
+      - from:
+        - podSelector: {}             # only pods within the same namespace
+        ports:
+        - protocol: TCP
+          port: 80                    # allow only traffic on port 80
+
+
+    kubectl apply -f allow-np.yaml
+
+
+Verification Step:
+
+    # Check the policy was created
+    kubectl get networkpolicy -n staging
+
+    # Describe to verify rules
+    kubectl describe networkpolicy allow-np -n staging
+
+
+⚠️ Note:
+
+    By default, once a NetworkPolicy is applied, all other traffic is denied unless explicitly allowed.
+
+    podSelector: {} applies the policy to all pods in the namespace.
+
+    If the CNI plugin used in the cluster does not support NetworkPolicy (e.g., basic flannel), this configuration will not take effect.
+
+N/A
+Resources
+Domain
+Minimize Microservice Vulnerabilities (20%) ✅
+Question 6Correct
+
+Prevent privileged pods from being created in the default namespace using a PodSecurityPolicy (PSP):
+
+    Create a PSP prevent-privileged-policy that forbids privileged pods.
+
+    Create a ServiceAccount psp-sa in default.
+
+    Create a ClusterRole prevent-role that allows using the PSP.
+
+    Bind the ClusterRole to the ServiceAccount with a ClusterRoleBinding prevent-role-binding.
+
+    Verify the PSP by attempting to create a privileged pod.
+
+Your answer is correct
+
+solution
+Explanation
+
+PodSecurityPolicy can enforce security restrictions such as disallowing privileged containers, host networking, and escalations.
+
+ServiceAccounts with RBAC can be granted access to specific PSPs.
+
+
+Commands / Steps:
+
+
+    # Edit PSP manifest
+    vim psp.yaml
+
+
+    # psp.yaml
+    apiVersion: policy/v1beta1
+    kind: PodSecurityPolicy
+    metadata:
+      name: prevent-privileged-policy
+    spec:
+      privileged: false          # Prevents privileged pods
+      allowPrivilegeEscalation: false
+      requiredDropCapabilities:
+        - ALL
+      volumes:
+        - '*'
+      runAsUser:
+        rule: 'RunAsAny'
+      seLinux:
+        rule: 'RunAsAny'
+      supplementalGroups:
+        rule: 'RunAsAny'
+      fsGroup:
+        rule: 'RunAsAny'
+      hostNetwork: false
+      hostIPC: false
+      hostPID: false
+
+
+    # Apply PSP
+    kubectl apply -f psp.yaml
+
+
+    # Create ClusterRole for PSP access
+    kubectl create clusterrole prevent-role \
+      --verb=use \
+      --resource=podsecuritypolicies.policy \
+      --resource-name=prevent-privileged-policy \
+      --dry-run=client -o yaml
+
+
+    # Generated ClusterRole
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      name: prevent-role
+    rules:
+      - apiGroups: ['policy']
+        resources: ['podsecuritypolicies']
+        verbs: ['use']
+        resourceNames: ['prevent-privileged-policy']
+
+
+    # Create ServiceAccount in default namespace
+    kubectl create sa psp-sa -n default
+
+
+    # ServiceAccount manifest
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: psp-sa
+      namespace: default
+
+
+    # Bind the PSP ClusterRole to the ServiceAccount
+    kubectl create clusterrolebinding prevent-role-binding \
+      --clusterrole=prevent-role \
+      --serviceaccount=default:psp-sa \
+      --dry-run=client -o yaml
+
+
+    # ClusterRoleBinding manifest
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: prevent-role-binding
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: prevent-role
+    subjects:
+      - kind: ServiceAccount
+        name: psp-sa
+        namespace: default
+
+
+    # Attempt to create a privileged pod
+    vim privileged-pod.yaml
+
+
+    # privileged-pod.yaml
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: privileged-pod
+    spec:
+      serviceAccountName: psp-sa
+      containers:
+      - name: nginx
+        image: nginx
+        securityContext:
+          privileged: true   # Should fail due to PSP
+
+
+    # Apply the pod manifest
+    kubectl apply -f privileged-pod.yaml
+
+    # Verify PSP enforcement via RBAC
+    kubectl auth can-i use podsecuritypolicy/prevent-privileged-policy \
+    --as=system:serviceaccount:default:psp-sa
+
+
+Verification Step:
+
+    Creating the privileged pod should fail:
+
+    kubectl get pod privileged-pod -n default
+
+    Verifying PSP enforcement via RBAC:
+
+    kubectl auth can-i use podsecuritypolicy/prevent-privileged-policy \
+    --as=system:serviceaccount:default:psp-sa
+
+
+⚠️ Note:
+
+    PSPs are deprecated in Kubernetes ≥1.25; for newer clusters, use Pod Security Admission or OPA/Gatekeeper.
+
+    Always test the PSP with a pod that violates the policy to confirm enforcement.
+
+N/A
+Resources
+Domain
+Minimize Microservice Vulnerabilities (20%) ✅
+Question 7Correct
+
+Create a default-deny NetworkPolicy in the test namespace to prevent accidental exposure of pods.
+
+The policy should block all ingress and egress traffic for every pod in the namespace.
+
+You can find a skeleton manifests file at /home/policy/network-policy.yaml
+
+
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: deny-network
+
+Your answer is correct
+
+solution
+Explanation
+
+Commands / Steps:
+
+
+    vim /home/policy/network-policy.yaml
+
+
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: deny-network
+      namespace: test
+    spec:
+      podSelector: {}  # Apply policy to all pods in the namespace
+      policyTypes:
+      - Ingress
+      - Egress
+
+
+    kubectl apply -f /home/policy/network-policy.yaml
+
+
+Verification Step:
+
+    # Check that the network policy exists
+    kubectl get networkpolicy -n test
+
+    # Describe to see that all traffic is denied
+    kubectl describe networkpolicy deny-network -n test
+
+    # Check that no traffic is allowed
+    kubectl run test-pod -n test --image=nginx -- sleep 3600
+    kubectl exec -n test test-pod -- curl -s http://localhost:80
+
+
+⚠️ Note:
+
+    Applying a default-deny NetworkPolicy ensures that pods are not accidentally reachable from other pods or external sources.
+
+    In namespaces without any other NetworkPolicies, this effectively isolates all pods until other policies explicitly allow traffic.
+
+N/A
+Resources
+Domain
+Minimize Microservice Vulnerabilities (20%) ✅

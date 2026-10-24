@@ -1,0 +1,437 @@
+{
+  "questions": [
+    {
+      "id": "1",
+      "namespace": "sandbox",
+      "machineHostname": "ckad9999",
+      "question": "The Deployment `build-agent` in the namespace `sandbox` runs its container as root, with every Linux capability and a writable root filesystem. Harden it using its `securityContext`, without changing its image or replicas:\n\n- The container must **not run as root** (use the user `65535`).\n- Privilege escalation must be disallowed.\n- **Drop all capabilities**; the only one that may be kept is `NET_BIND_SERVICE`.\n- The root filesystem must be **read-only**.\n\nThe Pods must keep running: the application writes temporary files to `/tmp`.",
+      "concepts": [
+        "security context",
+        "non-root",
+        "capabilities",
+        "read-only filesystem"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "build-agent runs as non-root, without capabilities or privilege escalation and with a read-only root filesystem, and is ready",
+          "verificationScriptFile": "q1_s1_validate_security_context.sh",
+          "expectedOutput": "0",
+          "weightage": 6
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "namespace": "rbac-audit",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `rbac-audit` several ServiceAccounts are allowed to read Secrets, some of them in ways that are not obvious (wildcard rules, built-in ClusterRoles).\n\n1. Find **every ServiceAccount of the namespace that can read Secrets** and write their names, one per line, to `/tmp/exam/cks-005-q2/secret-readers.txt`.\n2. `reader-sa` is the only ServiceAccount that needs Secrets. Remove the access to Secrets from all the others. They must keep reading ConfigMaps.",
+      "concepts": [
+        "rbac",
+        "least privilege",
+        "wildcard permissions"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "secret-readers.txt lists the ServiceAccounts that could read Secrets",
+          "verificationScriptFile": "q2_s1_validate_secret_readers_list.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "2",
+          "description": "batch-sa and ops-sa cannot read Secrets anymore but keep ConfigMaps; reader-sa untouched",
+          "verificationScriptFile": "q2_s2_validate_access_removed.sh",
+          "expectedOutput": "0",
+          "weightage": 5
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "namespace": "staging",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `staging` create a NetworkPolicy named `allow-np` for the Pod `web`, which listens on ports 80 and 8080:\n\n- Allow the Pods of the **same namespace** to connect to port **80**.\n- Deny the traffic to any other port.\n- Deny the traffic from the Pods of other namespaces (the Pod `outsider` in `staging-ext` must not reach `web`).",
+      "concepts": [
+        "network policy",
+        "ingress",
+        "namespace isolation"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "NetworkPolicy allow-np exists in staging and restricts ingress",
+          "verificationScriptFile": "q3_s1_validate_policy_exists.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "web accepts port 80 from its namespace only (8080 and other namespaces blocked)",
+          "verificationScriptFile": "q3_s2_validate_traffic.sh",
+          "expectedOutput": "0",
+          "weightage": 5
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "namespace": "exposed-lab",
+      "machineHostname": "ckad9999",
+      "question": "Review how the Services of the namespace `exposed-lab` are exposed outside the cluster. Only the Service `portal` is meant to be reachable from outside. Make the other Services that are exposed externally internal-only, keeping their names, ports and selectors.",
+      "concepts": [
+        "services",
+        "attack surface",
+        "nodeport"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "reports and admin are ClusterIP Services and still work",
+          "verificationScriptFile": "q4_s1_validate_internal_services.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "portal stays public, the internal Services are fixed and cache is kept",
+          "verificationScriptFile": "q4_s2_validate_public_service_kept.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "namespace": "files",
+      "machineHostname": "ckad9999",
+      "question": "Verify the signatures of container images with **cosign** and pin the verified image.\n\nThe repository `payments` of the lab registry (address in `/tmp/exam/cks-005-q5/registry.txt`) has the tags `v1.0`, `v1.1` and `v1.2`. The trusted public key is `/tmp/exam/cks-005-q5/cosign.pub`. Not every tag was signed, and signatures made with another key are not trusted.\n\n1. Find out which tag has a **valid signature for the trusted key** and write it to `/tmp/exam/cks-005-q5/verified-tags.txt`.\n2. Update `/tmp/exam/cks-005-q5/deployment.yaml` so that it uses the verified image **pinned by its digest** (`repository@sha256:...`).\n\nHints: the registry is plain HTTP; use `--insecure-ignore-tlog=true` with `cosign verify` (there is no transparency log entry).",
+      "concepts": [
+        "cosign",
+        "image signing",
+        "supply chain",
+        "image digest"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "verified-tags.txt contains only the tag signed with the trusted key",
+          "verificationScriptFile": "q5_s1_validate_verified_tag.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "2",
+          "description": "deployment.yaml uses the verified image pinned by digest",
+          "verificationScriptFile": "q5_s2_validate_pinned_image.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    },
+    {
+      "id": "6",
+      "namespace": "files",
+      "machineHostname": "ckad9999",
+      "question": "Sign a container image with **cosign**.\n\nThe lab registry (address in `/tmp/exam/cks-005-q6/registry.txt`) has the repository `internal-tools` with the tags `1.0` and `1.1`.\n\n1. Generate a cosign key pair in `/tmp/exam/cks-005-q6/` (files `cosign.key` and `cosign.pub`; use an empty password).\n2. Sign the image `internal-tools:1.0` with the private key and verify the signature with the public key. **Do not sign `1.1`.**\n\nHints: the registry is plain HTTP and there is no transparency log: sign with `--tlog-upload=false` and verify with `--insecure-ignore-tlog=true`. Set `COSIGN_PASSWORD=\"\"` to avoid the password prompt.",
+      "concepts": [
+        "cosign",
+        "image signing",
+        "supply chain"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "cosign.key and cosign.pub exist and are valid",
+          "verificationScriptFile": "q6_s1_validate_key_pair.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "internal-tools:1.0 has a valid signature for the generated key and 1.1 is not signed",
+          "verificationScriptFile": "q6_s2_validate_signature.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    },
+    {
+      "id": "7",
+      "namespace": "trace-lab",
+      "machineHostname": "ckad9999",
+      "question": "The Pod `ledger-sync` in the namespace `trace-lab` runs on `{{NODE02}}` and behaves suspiciously. Use **strace** on the node (`ssh {{NODE02}}`) to inspect its process (include the child processes it spawns) and find out:\n\n1. The **path of the file** that it creates and reads again in a loop. Save it to `/tmp/exam/cks-005-q7/file.txt`.\n2. The **IP address and port** it tries to connect to. Save them as `IP:PORT` to `/tmp/exam/cks-005-q7/endpoint.txt`.\n\nDo not modify or delete the Pod.",
+      "concepts": [
+        "strace",
+        "runtime security",
+        "syscalls",
+        "incident response"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "file.txt holds the path used by the container process",
+          "verificationScriptFile": "q7_s1_validate_file_path.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "2",
+          "description": "endpoint.txt holds the IP:port contacted by the container process",
+          "verificationScriptFile": "q7_s2_validate_endpoint.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    },
+    {
+      "id": "8",
+      "namespace": "{{NODE02}}",
+      "machineHostname": "ckad9999",
+      "question": "A process on the worker node `{{NODE02}}` (`ssh {{NODE02}}`) keeps trying to connect to an external host. Investigate it and contain it:\n\n1. Use **strace** (or other tools) to find the `IP:PORT` it connects to and save it to `/tmp/exam/cks-005-q8/endpoint.txt`.\n2. **Stop the process**.\n\nThe node must stay healthy: do not stop the kubelet.",
+      "concepts": [
+        "strace",
+        "host hardening",
+        "incident response"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "endpoint.txt holds the address contacted by the suspicious process",
+          "verificationScriptFile": "q8_s1_validate_endpoint.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "2",
+          "description": "The suspicious process is stopped on {{NODE02}}",
+          "verificationScriptFile": "q8_s2_validate_stopped.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    },
+    {
+      "id": "9",
+      "namespace": "files",
+      "machineHostname": "ckad9999",
+      "question": "The audit log `/tmp/exam/cks-005-q9/audit.log` (JSON, one event per line) contains the history of the Secret `payment-gateway-key` in the namespace `billing`.\n\n1. Find the user whose request **successfully deleted** the Secret `payment-gateway-key` (other users only tried or only read it). Write the username to `/tmp/exam/cks-005-q9/who.txt`.\n2. Find the **source IP address** of that request and write it to `/tmp/exam/cks-005-q9/ip.txt`.",
+      "concepts": [
+        "audit logs",
+        "forensics",
+        "incident response"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "who.txt holds the user that deleted the Secret",
+          "verificationScriptFile": "q9_s1_validate_deleter.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "2",
+          "description": "ip.txt holds the source IP address of the request that deleted the Secret",
+          "verificationScriptFile": "q9_s2_validate_source_ip.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "namespace": "image-policy",
+      "machineHostname": "ckad9999",
+      "question": "Enable the **ImagePolicyWebhook** admission plugin on the API server (`{{CONTROL_PLANE}}`) so that images tagged `latest` (or without a tag) are rejected.\n\nThe webhook backend already runs on the control plane and answers at `https://127.0.0.1:8443/image_policy`. The configuration files are in `/etc/kubernetes/policywebhook/` (`admission_config.json`, `kubeconfig.yaml` and the CA `ca.pem`), but they contain mistakes, and the API server does not use them yet.\n\n- Fix the configuration. The plugin must **deny the images if the backend cannot be reached** (fail closed).\n- Enable the plugin **in addition to** the plugins that are already enabled, point the API server to the admission configuration file and make the directory available inside the kube-apiserver static Pod.\n- Wait until the API server is healthy again. Pods whose image is pinned (for example `busybox:1.36.1`) must still be accepted in the namespace `image-policy`.",
+      "concepts": [
+        "imagepolicywebhook",
+        "admission control",
+        "kube-apiserver",
+        "supply chain"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "kube-apiserver enables ImagePolicyWebhook (NodeRestriction kept) with the admission config; fail-closed and existing kubeconfig",
+          "verificationScriptFile": "q10_s1_validate_apiserver_wiring.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "Images tagged latest or without a tag are denied by the webhook",
+          "verificationScriptFile": "q10_s2_validate_latest_denied.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "Pods with pinned images are still admitted (webhook reachable)",
+          "verificationScriptFile": "q10_s3_validate_pinned_allowed.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "11",
+      "namespace": "kubelet-lab",
+      "machineHostname": "ckad9999",
+      "question": "Make the runtime default seccomp profile apply to every Pod of the worker node `{{NODE02}}` that does not set its own:\n\n1. Update the kubelet configuration of `{{NODE02}}` to make seccomp enabled by default, and restart the kubelet.\n2. Create the Pod `probe` (image `busybox:1.36.1`, command `sleep 3600`) in the namespace `kubelet-lab`, scheduled on `{{NODE02}}` **without any seccomp setting in its spec**, and check that its process is confined by a seccomp filter.",
+      "concepts": [
+        "seccomp",
+        "kubelet",
+        "node hardening"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The kubelet of {{NODE02}} has seccompDefault enabled and runs",
+          "verificationScriptFile": "q11_s1_validate_kubelet_config.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "The Pod probe runs on {{NODE02}} without an explicit profile and with Seccomp mode 2",
+          "verificationScriptFile": "q11_s2_validate_pod_seccomp.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "12",
+      "namespace": "mesh-lab",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `mesh-lab` (Istio sidecar injection is enabled) the Service `orders` is called by the Pods `web-client` (ServiceAccount `frontend`) and `batch-client` (ServiceAccount `scratch`).\n\nCreate an Istio **AuthorizationPolicy** so that the `orders` workload (`app: orders`) only accepts requests that come from the ServiceAccount **`frontend`** and only with the HTTP method **`GET`**. Every other request must be denied (HTTP 403).",
+      "concepts": [
+        "istio",
+        "authorization policy",
+        "zero trust",
+        "service mesh"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "An ALLOW AuthorizationPolicy for app=orders exists",
+          "verificationScriptFile": "q12_s1_validate_policy_exists.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "Only GET from the frontend ServiceAccount is accepted by orders",
+          "verificationScriptFile": "q12_s2_validate_behaviour.sh",
+          "expectedOutput": "0",
+          "weightage": 5
+        }
+      ]
+    },
+    {
+      "id": "13",
+      "namespace": "test-system",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `test-system` the Pod `nginx-pod` runs with a ServiceAccount.\n\n1. Write the name of the ServiceAccount used by `nginx-pod` to `/tmp/exam/cks-005-q13/sa-name.txt`.\n2. Create a Role `deploy-reader` in the same namespace that allows `get`, `list` and `watch` on Deployments, and bind it to that ServiceAccount with the RoleBinding `deploy-reader-bind`.",
+      "concepts": [
+        "service accounts",
+        "rbac"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "sa-name.txt holds the ServiceAccount of nginx-pod",
+          "verificationScriptFile": "q13_s1_validate_sa_name_file.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "The ServiceAccount can get, list and watch Deployments in test-system only",
+          "verificationScriptFile": "q13_s2_validate_role_binding.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        }
+      ]
+    },
+    {
+      "id": "14",
+      "namespace": "falco-lab",
+      "machineHostname": "ckad9999",
+      "question": "Falco is installed on `{{NODE01}}`. For an investigation a standalone configuration was prepared: start it with `falco -c /tmp/exam/cks-005-q14/falco.yaml` (it loads the rules file `/tmp/exam/cks-005-q14/rules.yaml`, prints the events on stdout and is independent of the Falco service).\n\nThe Pods `invoice` and `mailer` run on `{{NODE01}}` in the namespace `falco-lab` and keep spawning processes. The rules file has two rules:\n\n- `Any process in falco-lab`: a broad rule that reports every process spawned in the namespace (used by the SOC for all the Pods; its output format starts with `BROAD |`).\n- `Invoice process`: written for the Pod `invoice`, with the output `%evt.time.iso8601,%user.name,%proc.name`.\n\nThe rule `Invoice process` never reports anything although `invoice` keeps spawning processes.\n\n1. Find out why and fix it. You may change the rules file and/or the configuration `falco.yaml`, but **neither rule may be deleted**, no rule may be added and the broad rule must keep reporting the processes of the Pod `mailer`.\n2. Run Falco for at least **30 seconds** and save its output to `/tmp/exam/cks-005-q14/events` on `{{NODE01}}`. The file must contain the lines produced by `Invoice process` for the Pod `invoice` (`timestamp,user,processName`); other lines, for example from the broad rule, may be in the file.",
+      "concepts": [
+        "falco",
+        "rule matching",
+        "runtime security",
+        "troubleshooting"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The rule 'Invoice process' now reports the processes spawned by the Pod invoice (Falco run with the prepared configuration)",
+          "verificationScriptFile": "q14_s1_validate_invoice_rule_fires.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "The broad rule still reports the processes of the Pod mailer together with the working rule for invoice",
+          "verificationScriptFile": "q14_s2_validate_broad_rule_kept.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "events on {{NODE01}} holds the 'Invoice process' lines for 30 seconds or more, recorded after the exam started",
+          "verificationScriptFile": "q14_s3_validate_events_file.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "15",
+      "namespace": "traefik-lab",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `traefik-lab` the Pod `reports` (behind the Service `reports`, port 80) is an application that only knows two URLs: `/` (its home page) and `/health.txt`.\n\nThe Traefik ingress controller (IngressClass `traefik`) is installed in the cluster, together with its CRDs (for example `Middleware`). Make the application available on the host `lab.example.com`:\n\n1. The application must be reachable under the path prefix `/reports`: `http://lab.example.com/reports/health.txt` must return the content of `/health.txt` and `http://lab.example.com/reports/` its home page.\n2. Old links under `/legacy/` must keep working: a request to `http://lab.example.com/legacy/<file>` must be **permanently redirected** to `http://lab.example.com/reports/<file>`, where it ends on the application.",
+      "concepts": [
+        "ingress",
+        "traefik",
+        "middleware",
+        "stripprefix",
+        "redirectregex"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "An Ingress of the class traefik routes lab.example.com/reports to Service reports",
+          "verificationScriptFile": "q15_s1_validate_ingress.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "The prefix /reports is stripped: /reports/health.txt and /reports/ reach the application",
+          "verificationScriptFile": "q15_s2_validate_strip_prefix.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "/legacy/health.txt is redirected permanently (301/308) to /reports/health.txt",
+          "verificationScriptFile": "q15_s3_validate_legacy_redirect.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "4",
+          "description": "Following the redirect of a legacy URL ends on the application",
+          "verificationScriptFile": "q15_s4_validate_redirect_end_to_end.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    }
+  ]
+}
