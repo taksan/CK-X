@@ -63,6 +63,11 @@ document.addEventListener('DOMContentLoaded', function() {
                                 window.location.href = `/exam.html?id=${data.id}`;
                             }
                         });
+                    } else if (data.status === 'PREPARATION_FAILED') {
+                        // The last preparation failed: show why again (the poll shows the failure at once)
+                        showLoadingOverlay();
+                        updateExamInfo(data.info?.name || 'Unknown Exam');
+                        pollExamStatus(data.id);
                     }
                 }
             })
@@ -524,10 +529,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 const warmUpTime = data.warmUpTimeInSeconds || 30;
                 updateLoadingMessage(`Preparing your lab environment (${warmUpTime}s estimated)`);
                 
-                // Poll for exam status until it's ready
+                // Poll for exam status until it's ready (or the preparation fails: the screen then shows why)
                 return pollExamStatus(data.id);
             })
-            .then(() => {
+            .then(statusData => {
+                if (statusData.status !== 'READY') return;
                 // Redirect to the lab page after status is READY
                 const examId = localStorage.getItem('currentExamId');
                 window.location.href = `/exam.html?id=${examId}`;
@@ -557,11 +563,64 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('loadingMessage').textContent = message;
     }
 
+    // The steps of the preparation (done, running, failed) as reported by the facilitator
+    function renderSetupSteps(steps) {
+        const list = document.getElementById('setupSteps');
+        list.replaceChildren(...steps.map(step => {
+            const item = document.createElement('li');
+            item.className = `step-${step.state}`;
+            item.textContent = step.message;
+            return item;
+        }));
+        list.scrollTop = list.scrollHeight;
+    }
+
+    function resetSetupScreen() {
+        document.getElementById('setupSteps').replaceChildren();
+        document.getElementById('setupFailure').style.display = 'none';
+        document.getElementById('progressBar').classList.remove('failed');
+    }
+
+    // The preparation failed: say which step and show the end of its output
+    function showSetupFailure(examId, data) {
+        const failure = data.progress?.failure;
+        document.getElementById('progressBar').classList.add('failed');
+        updateLoadingMessage('The lab environment could not be prepared');
+        document.getElementById('setupFailureTitle').textContent = failure?.message || data.message || 'The preparation failed';
+        document.getElementById('setupFailureOutput').textContent = (failure?.output || []).join('\n');
+        document.getElementById('setupFailure').style.display = 'block';
+
+        document.getElementById('setupFailureCloseBtn').onclick = () => {
+            hideLoadingOverlay();
+            resetSetupScreen();
+        };
+        const terminateBtn = document.getElementById('setupFailureTerminateBtn');
+        terminateBtn.disabled = false;
+        terminateBtn.onclick = async () => {
+            terminateBtn.disabled = true;
+            terminateBtn.textContent = 'Terminating...';
+            try {
+                const response = await fetch(`/facilitator/api/v1/exams/${examId}/terminate`, { method: 'POST' });
+                if (!response.ok) throw new Error('Status ' + response.status);
+                localStorage.removeItem('currentExamData');
+                localStorage.removeItem('currentExamId');
+                hideLoadingOverlay();
+                resetSetupScreen();
+            } catch (error) {
+                terminateBtn.disabled = false;
+                terminateBtn.textContent = 'Terminate this exam';
+                document.getElementById('setupFailureTitle').textContent = `Could not terminate the exam: ${error.message}`;
+            }
+            terminateBtn.textContent = 'Terminate this exam';
+        };
+    }
+
     function updateExamInfo(info) {
         document.getElementById('examInfo').textContent = info;
     }
 
     async function pollExamStatus(examId) {
+        resetSetupScreen();
         const startTime = Date.now();
         const pollInterval = 1000; // Poll every 1 second
         
@@ -574,6 +633,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     // set warmup time in seconds
                     const warmUpTimeInSeconds = data.warmUpTimeInSeconds || 30;
 
+                    if (data.status === 'PREPARATION_FAILED') {
+                        if (data.progress?.steps) renderSetupSteps(data.progress.steps);
+                        showSetupFailure(examId, data);
+                        resolve(data);
+                        return;
+                    }
+
                     if (data.status === 'READY') {
                         // Set progress to 100% when ready
                         updateProgressBar(100);
@@ -583,10 +649,15 @@ document.addEventListener('DOMContentLoaded', function() {
                         return;
                     }
                     
-                    // Calculate progress based on warm-up time
-                    const elapsedTime = (Date.now() - startTime) / 1000;
-                    const progress = Math.min((elapsedTime / warmUpTimeInSeconds) * 100, 95);
-                    updateProgressBar(progress);
+                    if (data.progress) {
+                        // Real progress, step by step, reported by the preparation itself
+                        updateProgressBar(Math.min(data.progress.percent, 99));
+                        renderSetupSteps(data.progress.steps);
+                    } else {
+                        // No report from the preparation (yet): estimate from the warm-up time
+                        const elapsedTime = (Date.now() - startTime) / 1000;
+                        updateProgressBar(Math.min((elapsedTime / warmUpTimeInSeconds) * 100, 95));
+                    }
                     updateLoadingMessage(data.message || 'Preparing lab environment...');
                     
                     // Continue polling
@@ -628,10 +699,12 @@ document.addEventListener('DOMContentLoaded', function() {
             localStorage.setItem('currentExamId', data.id);
             
             // Start polling for status
-            await pollExamStatus(data.id, data.warmUpTimeInSeconds || 30);
+            const statusData = await pollExamStatus(data.id, data.warmUpTimeInSeconds || 30);
             
-            // Redirect to exam page when ready
-            window.location.href = `/exam.html?id=${data.id}`;
+            // Redirect to exam page when ready (a failed preparation is shown on the loading screen)
+            if (statusData.status === 'READY') {
+                window.location.href = `/exam.html?id=${data.id}`;
+            }
         } catch (error) {
             console.error('Error starting exam:', error);
             hideLoadingOverlay();

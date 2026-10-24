@@ -519,6 +519,84 @@ body {
     color: #666;
 }
 
+.setup-steps {
+    list-style: none;
+    margin: 0.5rem 0;
+    padding: 0;
+    max-height: 170px;
+    overflow-y: auto;
+    text-align: left;
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.setup-steps:empty {
+    display: none;
+}
+
+.setup-steps li {
+    padding: 2px 0;
+}
+
+.setup-steps li::before {
+    display: inline-block;
+    width: 1.4em;
+    content: '\2022';
+}
+
+.setup-steps li.step-ok::before {
+    content: '\2713';
+    color: #4CAF50;
+}
+
+.setup-steps li.step-run {
+    color: #222;
+    font-weight: 600;
+}
+
+.setup-steps li.step-run::before {
+    content: '\25B6';
+    color: #0d6efd;
+}
+
+.setup-steps li.step-fail {
+    color: #b02a37;
+    font-weight: 600;
+}
+
+.setup-steps li.step-fail::before {
+    content: '\2717';
+}
+
+.setup-failure {
+    margin: 1rem 0 0.5rem;
+    padding: 0.75rem;
+    border: 1px solid #f1aeb5;
+    border-radius: 6px;
+    background: #f8d7da;
+    color: #58151c;
+    text-align: left;
+}
+
+.setup-failure pre {
+    max-height: 160px;
+    overflow: auto;
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+    background: #fff;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    white-space: pre-wrap;
+}
+
+.setup-failure pre:empty {
+    display: none;
+}
+
+.custom-progress.failed {
+    background: #dc3545;
+}
+
 .exam-info {
     font-size: 0.9rem;
     color: #666;

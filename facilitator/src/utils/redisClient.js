@@ -12,6 +12,7 @@ const KEYS = {
   EXAM_STATUS: 'exam:status:', // For storing exam status string
   CURRENT_EXAM_ID: 'current-exam-id', // For storing current exam ID (single key)
   EXAM_RESULT: 'exam:result:', // For storing exam evaluation results
+  EXAM_PROGRESS: 'exam:progress:', // For storing the progress of the environment preparation (JSON)
 };
 
 // Create Redis client using environment variables
@@ -85,6 +86,39 @@ async function persistExamStatus(examId, status, ttl = 3600000) {
     return result;
   } catch (error) {
     logger.error(`Failed to persist exam status: ${error.message}`);
+    throw error;
+  }
+}
+
+/**
+ * Persist the progress of the exam environment preparation
+ * @param {string} examId - Exam identifier
+ * @param {Object} progress - {percent, message, steps, failure}
+ * @param {number} [ttl=3600] - Time to live in seconds (default: 1 hour)
+ * @returns {Promise<string>} - Returns 'OK' if successful
+ */
+async function persistExamProgress(examId, progress, ttl = 3600) {
+  try {
+    const client = await getClient();
+    return await client.setEx(`${KEYS.EXAM_PROGRESS}${examId}`, ttl, JSON.stringify(progress));
+  } catch (error) {
+    logger.error(`Failed to persist exam progress: ${error.message}`);
+    throw error;
+  }
+}
+
+/**
+ * Get the progress of the exam environment preparation
+ * @param {string} examId - Exam identifier
+ * @returns {Promise<Object|null>} - Parsed progress object or null if not found
+ */
+async function getExamProgress(examId) {
+  try {
+    const client = await getClient();
+    const data = await client.get(`${KEYS.EXAM_PROGRESS}${examId}`);
+    return data ? JSON.parse(data) : null;
+  } catch (error) {
+    logger.error(`Failed to get exam progress: ${error.message}`);
     throw error;
   }
 }
@@ -308,6 +342,7 @@ async function deleteAllExamData(examId) {
     const keys = [
       `${KEYS.EXAM_INFO}${examId}`,
       `${KEYS.EXAM_STATUS}${examId}`,
+      `${KEYS.EXAM_PROGRESS}${examId}`,
       `${KEYS.EXAM_RESULT}${examId}`
     ];
     const result = await client.del(keys);
@@ -327,12 +362,14 @@ module.exports = {
   // Create operations
   persistExamInfo,
   persistExamStatus,
+  persistExamProgress,
   persistExamResult,
   setCurrentExamId,
   
   // Read operations
   getExamInfo,
   getExamStatus,
+  getExamProgress,
   getExamResult,
   getCurrentExamId,
   

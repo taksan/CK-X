@@ -6,9 +6,10 @@ const config = require('../config');
 /**
  * Execute a command on a remote SSH server
  * @param {string} command - The command to execute
+ * @param {Function} [onStdout] - called with every chunk of stdout while the command runs
  * @returns {Promise<Object>} The result of the command execution
  */
-async function executeCommand(command) {
+async function executeCommand(command, onStdout) {
   logger.info(`Executing command: ${command}`);
   
   return new Promise((resolve, reject) => {
@@ -28,6 +29,7 @@ async function executeCommand(command) {
         
         stream.on('data', (data) => {
           stdout += data.toString();
+          if (onStdout) onStdout(data);
         });
         
         stream.stderr.on('data', (data) => {

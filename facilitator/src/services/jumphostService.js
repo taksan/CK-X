@@ -13,6 +13,7 @@ const redisClient = require('../utils/redisClient');
 const logger = require('../utils/logger');
 const remoteDesktopService = require('./remoteDesktopService');
 const MetricService = require('./metricService');
+const { createTracker } = require('./prepareProgress');
 
 /**
  * Prepare the exam environment on the jumphost
@@ -26,19 +27,47 @@ const MetricService = require('./metricService');
  * @returns {Promise<Object>} Result object with success status and data
  */
 async function setupExamEnvironment(examId, nodeCount = 1) {
+  const tracker = createTracker();
+
+  // The progress is stored for the status endpoint; a failure to store it must never break the preparation
+  const saveProgress = () => redisClient.persistExamProgress(examId, tracker.snapshot())
+    .catch(error => logger.warn(`Could not store the preparation progress of exam ${examId}`, { error: error.message }));
+
+  const markFailed = async (message, output = []) => {
+    tracker.fail(message, output);
+    await saveProgress();
+    await redisClient.persistExamStatus(examId, 'PREPARATION_FAILED');
+    MetricService.sendMetrics(examId, {
+      event: {
+        examLabState: 'PREPARATION_FAILED'
+      }
+    });
+  };
+
+  const tail = text => (text || '').split('\n').map(line => line.trimEnd()).filter(Boolean).slice(-15);
+
   try {
     // Update exam status to PREPARING
     await redisClient.persistExamStatus(examId, 'PREPARING');
     logger.info(`Started preparing environment for exam ${examId} with ${nodeCount} nodes`);
-    
+
+    tracker.event(1, 'run', 'desktop', 'Restarting the remote desktop session');
+    await saveProgress();
+
     //restart vnc session
     await remoteDesktopService.restartVncSession();
+
+    tracker.event(2, 'ok', 'desktop', 'Remote desktop session restarted');
+    await saveProgress();
 
     // Execute the prepare-exam-env command on the jumphost
     const command = `prepare-exam-env ${nodeCount} ${examId}`;
     
     logger.info(`Executing command on jumphost: ${command}`);
-    const result = await sshService.executeCommand(command);
+    // the script reports its progress on the SSH channel: store it as it comes
+    const result = await sshService.executeCommand(command, chunk => {
+      if (tracker.push(chunk)) saveProgress();
+    });
     
     logger.info('Command : prepare-exam-env, host: jumphost, result', { exitCode: result.exitCode });
     logger.info(result.stdout);
@@ -50,12 +79,7 @@ async function setupExamEnvironment(examId, nodeCount = 1) {
         exitCode: result.exitCode
       });
       
-      await redisClient.persistExamStatus(examId, 'PREPARATION_FAILED');
-      MetricService.sendMetrics(examId, {
-        event: {
-          examLabState: 'PREPARATION_FAILED'
-        }
-      });
+      await markFailed(`The environment preparation failed (exit code ${result.exitCode})`, tail(result.stderr));
       
       return {
         success: false,
@@ -67,6 +91,9 @@ async function setupExamEnvironment(examId, nodeCount = 1) {
         }
       };
     }
+
+    tracker.event(100, 'ok', 'ready', 'The exam environment is ready');
+    await saveProgress();
     
     // Update exam status to READY
     await redisClient.persistExamStatus(examId, 'READY');
@@ -88,7 +115,8 @@ async function setupExamEnvironment(examId, nodeCount = 1) {
     logger.error('Error preparing exam environment', { error: error.message });
     
     // Update exam status to PREPARATION_FAILED
-    await redisClient.persistExamStatus(examId, 'PREPARATION_FAILED');
+    await markFailed(`The environment preparation could not run: ${error.message}`).catch(statusError =>
+      logger.error(`Failed to record the preparation failure of exam ${examId}`, { error: statusError.message }));
     
     return {
       success: false,

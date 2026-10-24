@@ -166,6 +166,16 @@
                 <div class="custom-progress" id="progressBar"></div>
             </div>
             <div class="loading-message" id="loadingMessage">Initializing environment...</div>
+            <ul class="setup-steps" id="setupSteps"></ul>
+            <div class="setup-failure" id="setupFailure" style="display: none;">
+                <strong id="setupFailureTitle"></strong>
+                <pre id="setupFailureOutput"></pre>
+                <p class="mb-2">The environment could not be prepared. Terminate this exam to clean up, then start it again.</p>
+                <div class="d-flex justify-content-center gap-2">
+                    <button type="button" class="btn btn-danger btn-sm" id="setupFailureTerminateBtn">Terminate this exam</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="setupFailureCloseBtn">Close</button>
+                </div>
+            </div>
             <div class="exam-info" id="examInfo"></div>
             <hr>
             <div class="text-muted text-center w-100" style="font-size: 0.8 rem;">

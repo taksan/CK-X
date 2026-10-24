@@ -267,12 +267,25 @@ async function getExamStatus(req, res) {
       });
     }
 
+    // The preparation reports its progress step by step (null for an exam prepared before this existed)
+    const progress = await redisClient.getExamProgress(examId);
+
+    let message = 'Exam environment is being prepared';
+    if (examStatus === 'READY') {
+      message = 'Exam environment is ready';
+    } else if (examStatus === 'PREPARATION_FAILED') {
+      message = progress?.failure?.message || 'The exam environment preparation failed';
+    } else if (progress?.message) {
+      message = progress.message;
+    }
+
     // Return the exam status and any additional info
     return res.status(200).json({
       id: examId,
       status: examStatus || 'UNKNOWN',
       warmUpTimeInSeconds: examInfo.warmUpTimeInSeconds || 30,
-      message: examStatus === 'READY' ? 'Exam environment is ready' : 'Exam environment is being prepared'
+      message,
+      progress
     });
   } catch (error) {
     logger.error('Error retrieving exam status', { error: error.message });
