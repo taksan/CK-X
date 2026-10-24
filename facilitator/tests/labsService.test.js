@@ -54,6 +54,19 @@ test('directories without category.json, and exams without config.json or lab id
   assert.deepStrictEqual(discoverLabs(root).map(l => l.id), ['c-1']);
 });
 
+test('metadata that is valid JSON but not an object does not abort the discovery', () => {
+  const root = tree({
+    'null-cat/category.json': 'null',
+    'null-cat/001/config.json': { lab: 'n-1' },
+    'cat/category.json': {},
+    'cat/001/config.json': 'null',
+    'cat/002/config.json': '[1, 2]',
+    'cat/003/config.json': { lab: 42 },
+    'cat/004/config.json': { lab: 'ok' },
+  });
+  assert.deepStrictEqual(discoverLabs(root).map(l => l.id), ['ok']);
+});
+
 test('a duplicated lab id keeps the first exam only', () => {
   const root = tree({ 'cat/category.json': {}, 'cat/001/config.json': { lab: 'same' }, 'cat/002/config.json': { lab: 'same' } });
   assert.strictEqual(discoverLabs(root).length, 1);

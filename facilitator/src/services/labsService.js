@@ -4,10 +4,20 @@ const logger = require('../utils/logger');
 
 const EXAMS_ROOT = path.join('assets', 'exams');
 
+/**
+ * Read and parse a JSON file.
+ * @param {string} file - path of the file
+ * @returns {*} the parsed value (any JSON value, including null)
+ */
 function readJson(file) {
   return JSON.parse(fs.readFileSync(file, 'utf8'));
 }
 
+/**
+ * List the subdirectories of a directory.
+ * @param {string} dir - directory to list
+ * @returns {string[]} directory names, sorted
+ */
 function subdirectories(dir) {
   return fs.readdirSync(dir, { withFileTypes: true })
     .filter(entry => entry.isDirectory())
@@ -42,6 +52,10 @@ function discoverLabs(root = path.join(process.cwd(), EXAMS_ROOT)) {
       logger.warn(`Skipping category ${categoryDir}: invalid category.json (${error.message})`);
       continue;
     }
+    if (!isPlainObject(category)) {
+      logger.warn(`Skipping category ${categoryDir}: category.json is not a JSON object`);
+      continue;
+    }
     categories.push({ dir: categoryDir, name: category.name || categoryDir, order: category.order ?? Number.MAX_SAFE_INTEGER });
   }
 
@@ -62,7 +76,11 @@ function discoverLabs(root = path.join(process.cwd(), EXAMS_ROOT)) {
         logger.warn(`Skipping exam ${category.dir}/${examDir}: invalid config.json (${error.message})`);
         continue;
       }
-      if (!config.lab) {
+      if (!isPlainObject(config)) {
+        logger.warn(`Skipping exam ${category.dir}/${examDir}: config.json is not a JSON object`);
+        continue;
+      }
+      if (typeof config.lab !== 'string' || !config.lab) {
         logger.warn(`Skipping exam ${category.dir}/${examDir}: config.json has no "lab" id`);
         continue;
       }
@@ -86,6 +104,15 @@ function discoverLabs(root = path.join(process.cwd(), EXAMS_ROOT)) {
   }
 
   return labs;
+}
+
+/**
+ * Whether a parsed JSON value can carry metadata: a plain object (not null, an array or a scalar).
+ * @param {*} value - parsed JSON value
+ * @returns {boolean}
+ */
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 module.exports = { discoverLabs };
