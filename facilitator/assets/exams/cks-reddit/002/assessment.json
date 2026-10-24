@@ -1,0 +1,490 @@
+{
+  "questions": [
+    {
+      "id": "1",
+      "namespace": "testing",
+      "machineHostname": "ckad9999",
+      "question": "Create a NetworkPolicy named `deny-all` in the `testing` namespace that blocks all ingress and egress traffic for all pods in the namespace.",
+      "concepts": [
+        "network policies",
+        "ingress",
+        "egress",
+        "default deny"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "NetworkPolicy exists",
+          "verificationScriptFile": "q1_s1_validate_policy_exists.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "NetworkPolicy denies all ingress and egress for all pods in the namespace",
+          "verificationScriptFile": "q1_s2_validate_deny_all.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "namespace": "legacy-tokens",
+      "machineHostname": "ckad9999",
+      "question": "A Pod `web` is running in the `legacy-tokens` namespace. It uses the namespace's `default` ServiceAccount, whose token is mounted automatically.\n\n1. Create a new ServiceAccount `app-sa` in the `legacy-tokens` namespace with automatic token mounting disabled.\n2. Create a Secret of type `kubernetes.io/service-account-token` that references `app-sa`.\n3. Update the Pod `web` so that it uses `app-sa` and mounts the token from this Secret at `/var/run/secrets/kubernetes.io/serviceaccount/token`.",
+      "concepts": [
+        "service accounts",
+        "tokens",
+        "secrets",
+        "volume mounts"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "ServiceAccount app-sa exists with automatic token mounting disabled",
+          "verificationScriptFile": "q2_s1_validate_sa_automount_disabled.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "A service-account-token Secret exists for ServiceAccount app-sa",
+          "verificationScriptFile": "q2_s2_validate_sa_token_secret.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "Pod web uses app-sa and the token Secret is mounted at the specified path",
+          "verificationScriptFile": "q2_s3_validate_pod_uses_secret_token_mount.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "namespace": "image-hardening",
+      "machineHostname": "ckad9999",
+      "question": "You are given a Dockerfile and a Pod manifest. Both contain security best practice violations that need fixing.\n\nRules:\n- Fix two issues in the Dockerfile.\n- Fix two issues in the Pod manifest.\n- Do not add or remove fields — only edit existing ones.\n- When a non-root user is needed, use `test-user` with UID `5375`.\n\nThe files are located at `/tmp/exam/cks-002-q3/Dockerfile` and `/tmp/exam/cks-002-q3/pod.yaml`.\n\nRead them with `cat`.",
+      "concepts": [
+        "dockerfile",
+        "pod security",
+        "non-root user",
+        "privileged containers"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Dockerfile pins the base image and runs as test-user (UID 5375) instead of root",
+          "verificationScriptFile": "q3_s1_validate_dockerfile.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "Pod manifest runs the container as UID 5375 and disables privileged mode",
+          "verificationScriptFile": "q3_s2_validate_pod_manifest.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "namespace": "prod",
+      "machineHostname": "ckad9999",
+      "question": "Ensure that all Pods in the `prod` namespace follow the best practices of being stateless and immutable. Identify and delete any Pods that store data in container volumes (stateful) or are configured as privileged/with writable root filesystems (not immutable).",
+      "concepts": [
+        "immutable pods",
+        "stateless workloads",
+        "privileged containers",
+        "read-only root filesystem"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "All pods in prod are stateless and use immutable (read-only, non-privileged) containers",
+          "verificationScriptFile": "q4_s1_validate_prod_pods_stateless_immutable.sh",
+          "expectedOutput": "0",
+          "weightage": 5
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "namespace": "dev-ops",
+      "machineHostname": "ckad9999",
+      "question": "Pods in the namespace `dev-ops` mount the container runtime socket `/run/containerd/containerd.sock` from the host. Anyone with access to this socket can start privileged containers and take over the node.\n\nIdentify the Pod(s) mounting the socket and update their Deployment(s) to remove the volume and the volume mount. Do not touch workloads that do not mount a runtime socket. Verify that the containers can no longer access `/run/containerd/containerd.sock`.",
+      "concepts": [
+        "hostPath volumes",
+        "container runtime socket",
+        "least privilege",
+        "runtime security"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "No pods in dev-ops mount a container runtime socket from the host",
+          "verificationScriptFile": "q5_s1_validate_no_runtime_socket_mounts.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "runtime-client is running without the socket and log-agent was left untouched",
+          "verificationScriptFile": "q5_s2_validate_workloads_intact.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "6",
+      "namespace": "payments",
+      "machineHostname": "ckad9999",
+      "question": "Enable Istio Mutual TLS (mTLS) in STRICT mode for all workloads in the namespace `payments`. Before enforcing mTLS, verify that automatic Istio Sidecar Injection is enabled for the namespace. After enforcement, confirm that all Pods communicate using mTLS.",
+      "concepts": [
+        "istio",
+        "mtls",
+        "sidecar injection",
+        "zero-trust networking"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Namespace payments has Istio automatic sidecar injection enabled",
+          "verificationScriptFile": "q6_s1_validate_injection_enabled.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "Namespace payments enforces mTLS in STRICT mode via PeerAuthentication",
+          "verificationScriptFile": "q6_s2_validate_strict_mtls.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "All pods in payments namespace have Istio sidecars (istio-proxy)",
+          "verificationScriptFile": "q6_s3_validate_pods_have_sidecars.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "7",
+      "namespace": "apparmor",
+      "machineHostname": "ckad9999",
+      "question": "Enforce a prepared AppArmor profile on worker node `{{NODE01}}` and deploy a Pod using it.\n\nThe profile `nginx-profile-2` is prepared in `/etc/apparmor.d/nginx_apparmor` on `{{NODE01}}`. Load it on `{{NODE01}}`, then update the Pod manifest `/tmp/exam/cks-002-q7/pod.yaml` so that the container uses this profile, and deploy the Pod `apparmor-pod` in the `apparmor` namespace on `{{NODE01}}`. The Pod must be running, and the profile must be enforced (the container must not be able to write to the filesystem).",
+      "concepts": [
+        "apparmor",
+        "pod security",
+        "node hardening"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "AppArmor profile nginx-profile-2 exists and is loaded on {{NODE01}}",
+          "verificationScriptFile": "q7_s1_validate_apparmor_profile_loaded.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "Pod apparmor-pod in namespace apparmor is running on {{NODE01}} with the nginx-profile-2 profile enforced",
+          "verificationScriptFile": "q7_s2_validate_pod_uses_apparmor.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    },
+    {
+      "id": "8",
+      "namespace": "kube-system",
+      "machineHostname": "ckad9999",
+      "question": "Re-secure the API server so that only authenticated and authorized REST requests are allowed. Configure authorization mode to Node,RBAC, enable the NodeRestriction admission controller, and remove any ClusterRoleBinding granting access to system:anonymous.",
+      "concepts": [
+        "api server",
+        "rbac",
+        "admission control",
+        "cluster hardening"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "kube-apiserver uses Node,RBAC authorization and the NodeRestriction admission plugin",
+          "verificationScriptFile": "q8_s1_validate_authz_and_nodrestriction.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "No ClusterRoleBinding grants permissions to system:anonymous",
+          "verificationScriptFile": "q8_s2_validate_anonymous_binding_absent.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    },
+    {
+      "id": "9",
+      "namespace": "kube-system",
+      "machineHostname": "ckad9999",
+      "question": "Enable Kubernetes audit logging with custom retention and policy rules on the control plane (`{{CONTROL_PLANE}}`).\n\n- Store the audit logs at `/var/log/kubernetes-logs.log`, keeping 5 days of history with up to 10 rotated files of 100 MB each.\n- Write an audit policy (in a file of your choice on the control plane) and make the API server use it. The policy must:\n  - log CronJob changes at `RequestResponse` level\n  - log Deployment changes in the `kube-system` namespace at `Request` level\n  - log all other core and extensions resources at `Request` level\n  - not log `watch` requests made by `system:kube-proxy` on `endpoints` or `services`",
+      "concepts": [
+        "audit logging",
+        "kube-apiserver",
+        "log rotation"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "kube-apiserver uses an audit policy file (a valid Policy) and logs to /var/log/kubernetes-logs.log",
+          "verificationScriptFile": "q9_s1_validate_policy_and_log_path.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "kube-apiserver retention: 5 days, 10 old files, 100 MB",
+          "verificationScriptFile": "q9_s2_validate_retention_flags.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "3",
+          "description": "CronJob changes are logged at RequestResponse",
+          "verificationScriptFile": "q9_s3_validate_cronjobs_level.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "4",
+          "description": "Deployment changes in kube-system are logged at Request",
+          "verificationScriptFile": "q9_s4_validate_kube_system_deployments_level.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "5",
+          "description": "Other core and extensions resources are logged at Request",
+          "verificationScriptFile": "q9_s5_validate_core_and_extensions_level.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "6",
+          "description": "The watch requests of system:kube-proxy on endpoints and services are not logged",
+          "verificationScriptFile": "q9_s6_validate_kube_proxy_watches_skipped.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "namespace": "kube-system",
+      "machineHostname": "ckad9999",
+      "question": "A kube-bench run reported the failed checks below. Fix them.\n\n1. API server (`{{CONTROL_PLANE}}`): disable profiling with `--profiling=false` and make sure service account lookup is not disabled (`--service-account-lookup=true`).\n2. kubelet on `{{NODE01}}`: disable anonymous authentication, set the authorization mode to `Webhook` and disable the read-only port (`readOnlyPort: 0`). Restart the kubelet and make sure the node is Ready.\n3. etcd (`{{CONTROL_PLANE}}`): make sure etcd does not use self-signed certificates, by explicitly setting `--auto-tls=false` and `--peer-auto-tls=false`.",
+      "concepts": [
+        "kube-bench",
+        "cis benchmark",
+        "kubelet",
+        "etcd",
+        "cluster setup"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "kube-apiserver has --profiling=false and service account lookup enabled",
+          "verificationScriptFile": "q10_s1_validate_apiserver_kubebench_flags.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "kubelet on {{NODE01}} has anonymous auth disabled, Webhook authorization and no read-only port",
+          "verificationScriptFile": "q10_s2_validate_kubelet_config.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "etcd sets --auto-tls=false and --peer-auto-tls=false",
+          "verificationScriptFile": "q10_s3_validate_etcd_tls_flags.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "11",
+      "namespace": "kube-system",
+      "machineHostname": "ckad9999",
+      "question": "Enable encryption at rest for Kubernetes Secrets on the control plane using an EncryptionConfiguration with the AES-CBC and identity providers, so that new Secrets are stored encrypted in etcd. Store the configuration in a file of your choice on the control plane and make the API server use it.",
+      "concepts": [
+        "encryption at rest",
+        "secrets",
+        "etcd"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The EncryptionConfiguration encrypts secrets with aescbc as the first provider and keeps identity as a fallback",
+          "verificationScriptFile": "q11_s1_validate_encryption_config.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "A new Secret is stored encrypted (aescbc) in etcd",
+          "verificationScriptFile": "q11_s2_validate_secrets_encrypted_in_etcd.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    },
+    {
+      "id": "12",
+      "namespace": "server",
+      "machineHostname": "ckad9999",
+      "question": "Create a RuntimeClass named `sandboxed` using the runsc (gVisor) handler and update all Pods in the `server` namespace to use this runtime.",
+      "concepts": [
+        "runtimeclass",
+        "gvisor",
+        "container runtimes"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "RuntimeClass sandboxed exists with handler runsc",
+          "verificationScriptFile": "q12_s1_validate_runtimeclass.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "All workloads in the server namespace are running with runtimeClassName sandboxed",
+          "verificationScriptFile": "q12_s2_validate_server_pods_use_runtimeclass.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "13",
+      "namespace": "secure-apps",
+      "machineHostname": "ckad9999",
+      "question": "Only images from the trusted registry `registry.k8s.io/` may run in the namespace `secure-apps`.\n\n1. Create a ValidatingAdmissionPolicy named `trusted-registries` that applies to Pods (CREATE and UPDATE) and rejects Pods when any container or init container image does not start with `registry.k8s.io/`.\n2. Create a ValidatingAdmissionPolicyBinding named `trusted-registries-binding` that enforces the policy with the `Deny` action, only in the `secure-apps` namespace.\n3. Verify that a Pod using `nginx:1.25` is rejected in `secure-apps`, while a Pod using `registry.k8s.io/pause:3.10` is accepted there.",
+      "concepts": [
+        "validating admission policy",
+        "cel",
+        "admission control",
+        "supply chain security",
+        "trusted registries"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "ValidatingAdmissionPolicy trusted-registries validates Pod images against registry.k8s.io/",
+          "verificationScriptFile": "q13_s1_validate_policy.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "Binding trusted-registries-binding enforces the policy with the Deny action",
+          "verificationScriptFile": "q13_s2_validate_binding.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "Untrusted image is rejected in secure-apps; trusted image and other namespaces are accepted",
+          "verificationScriptFile": "q13_s3_validate_enforcement.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "14",
+      "namespace": "secure-team",
+      "machineHostname": "ckad9999",
+      "question": "In the `secure-team` namespace, which is labeled to enforce the Pod Security Admission `restricted` profile, fix the provided Deployment manifest `/tmp/exam/cks-002-q14/insecure-deployment.yaml` so that it complies with the restricted standard, then apply it so that the Deployment `webapp` runs successfully.",
+      "concepts": [
+        "pod security admission",
+        "restricted profile",
+        "deployment security context"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Namespace secure-team exists and enforces the restricted Pod Security profile via labels",
+          "verificationScriptFile": "q14_s1_validate_secure_team_namespace.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "Deployment webapp in secure-team namespace complies with restricted profile and has a running pod",
+          "verificationScriptFile": "q14_s2_validate_restricted_deployment.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    },
+    {
+      "id": "15",
+      "namespace": "supply-chain",
+      "machineHostname": "ckad9999",
+      "question": "The `supply-chain` namespace runs several Pods. Use Trivy to scan the container images they use.\n\n1. Delete every Pod whose image contains at least one `CRITICAL` vulnerability. Keep the Pods whose images have none.\n2. Save the scan result of the image used by Pod `legacy-web`, showing only `CRITICAL` vulnerabilities, to `/tmp/exam/cks-002-q15/legacy-web-critical.txt`.",
+      "concepts": [
+        "trivy",
+        "image scanning",
+        "vulnerabilities",
+        "supply chain security"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Pods with CRITICAL vulnerabilities are deleted and the clean Pod is kept",
+          "verificationScriptFile": "q15_s1_validate_vulnerable_pods_deleted.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "2",
+          "description": "CRITICAL-only Trivy report for the legacy-web image is saved",
+          "verificationScriptFile": "q15_s2_validate_critical_report.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "16",
+      "namespace": "batch-ops",
+      "machineHostname": "ckad9999",
+      "question": "Cluster security monitoring revealed that a container in the `batch-ops` namespace is attempting to access `/dev/mem`, which gives direct access to physical memory.\n\nUse Falco (or sysdig) to detect the offending Pod, find the Deployment that owns it, and scale that Deployment to `0` replicas to stop the workload. Workloads that are not involved must keep running.",
+      "concepts": [
+        "falco",
+        "runtime security",
+        "deployment scaling"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The Deployment whose Pod reads /dev/mem is scaled to 0 and the other workloads are still running",
+          "verificationScriptFile": "q16_s1_validate_mem_hacker_scaled_zero.sh",
+          "expectedOutput": "0",
+          "weightage": 7
+        }
+      ]
+    }
+  ]
+}

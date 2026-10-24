@@ -1,0 +1,15 @@
+{
+  "lab": "cks-002",
+  "name": "CKS Practice Lab - Kubernetes Security - 2",
+  "description": "Another set of security tasks",
+  "difficulty": "Hard",
+  "warmUpTimeInSeconds": 260,
+  "examDurationInMinutes": 120,
+  "workerNodes": 1,
+  "answers": "assets/exams/cks-reddit/002/answers.md",
+  "questions": "assessment.json",
+  "totalMarks": 100,
+  "lowScore": 40,
+  "mediumScore": 60,
+  "highScore": 90
+}
