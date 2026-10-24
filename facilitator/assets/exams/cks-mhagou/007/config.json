@@ -1,0 +1,15 @@
+{
+  "lab": "mhagou-007",
+  "name": "CKS - MHagou - Exam 7",
+  "description": "Service exposure, RBAC least privilege, kubelet and kernel hardening, SBOMs, Traefik TLS ingress, container daemon, admission policy, Falco, Cilium and checksums",
+  "difficulty": "Hard",
+  "warmUpTimeInSeconds": 300,
+  "examDurationInMinutes": 120,
+  "workerNodes": 1,
+  "answers": "assets/exams/cks-mhagou/007/answers.md",
+  "questions": "assessment.json",
+  "totalMarks": 100,
+  "lowScore": 40,
+  "mediumScore": 60,
+  "highScore": 90
+}

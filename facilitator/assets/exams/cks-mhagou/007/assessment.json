@@ -1,0 +1,422 @@
+{
+  "questions": [
+    {
+      "id": "1",
+      "namespace": "exposure-lab",
+      "machineHostname": "ckad9999",
+      "question": "The Service `nginx-external` in the namespace `exposure-lab` is exposed outside the cluster, but it must only be reachable from inside the cluster.\n\nChange the Service accordingly. The Deployment `nginx` must keep being served through the Service (same name, same port 80).",
+      "concepts": [
+        "services",
+        "attack surface",
+        "nodeport"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Service nginx-external is ClusterIP only: no node port, no external address",
+          "verificationScriptFile": "q1_s1_validate_service_internal.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "The Service still answers HTTP on port 80 inside the cluster",
+          "verificationScriptFile": "q1_s2_validate_service_still_works.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "namespace": "dev-z",
+      "machineHostname": "ckad9999",
+      "question": "The user `jacob` has too many permissions in the namespace `dev-z`. To see the current (bad) state:\n\n`kubectl auth can-i delete pods -n dev-z --as=jacob`\n\nJacob must only have these permissions in `dev-z`:\n\n- `get`, `list` and `watch` on pods;\n- `get` and `list` on configmaps;\n- no access at all to secrets.\n\nUpdate the permissions. You can edit the existing Role `dev-user-access`.",
+      "concepts": [
+        "rbac",
+        "least privilege",
+        "roles"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "jacob can get, list and watch pods and nothing more on pods",
+          "verificationScriptFile": "q2_s1_validate_pods_read_only.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "jacob can get and list configmaps and nothing more",
+          "verificationScriptFile": "q2_s2_validate_configmaps_read.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "jacob has no access to secrets and nothing besides pods and configmaps",
+          "verificationScriptFile": "q2_s3_validate_no_secrets.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "namespace": "{{NODE02}}-kubelet",
+      "machineHostname": "ckad9999",
+      "question": "Ensure that the kubelet of the worker node `{{NODE02}}` (`ssh {{NODE02}}`):\n\n- **disables anonymous authentication**;\n- **delegates the authorization decisions to the API server** (Webhook).\n\nThe change must survive a restart of the kubelet, and `{{NODE02}}` must stay `Ready`.",
+      "concepts": [
+        "kubelet",
+        "node hardening",
+        "authentication",
+        "authorization"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The kubelet of {{NODE02}} rejects anonymous requests (anonymous.enabled=false, HTTP 401)",
+          "verificationScriptFile": "q3_s1_validate_anonymous_disabled.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "2",
+          "description": "The kubelet of {{NODE02}} uses authorization.mode=Webhook",
+          "verificationScriptFile": "q3_s2_validate_authorization_webhook.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "3",
+          "description": "The kubelet configuration file keeps the settings and {{NODE02}} is Ready",
+          "verificationScriptFile": "q3_s3_validate_persistent_and_healthy.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "namespace": "sbom-lab",
+      "machineHostname": "ckad9999",
+      "question": "The Pod `kiwi` in the namespace `sbom-lab` runs an old nginx image. Use `trivy` (available on this machine) to work with the Software Bill of Materials (SBOM) of that image. Save the files in `/tmp/exam/mhagou-007-q4/`:\n\n1. Generate an **SPDX-JSON** SBOM of the image of the Pod and save it as `sbom.spdx.json`.\n2. Generate a **CycloneDX** SBOM of the same image and save it as `sbom.cdx.json`.\n3. Find in the SPDX SBOM the version of the package `openssl` and write it to `openssl-version.txt`.",
+      "concepts": [
+        "sbom",
+        "trivy",
+        "supply chain"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "sbom.spdx.json is an SPDX-JSON SBOM of the image of the Pod kiwi",
+          "verificationScriptFile": "q4_s1_validate_spdx_sbom.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "sbom.cdx.json is a CycloneDX SBOM of the image of the Pod kiwi",
+          "verificationScriptFile": "q4_s2_validate_cyclonedx_sbom.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "openssl-version.txt holds the version of the package openssl from the SBOM",
+          "verificationScriptFile": "q4_s3_validate_openssl_version.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "namespace": "rocket",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `rocket` the Deployment and the Service `rocket-server` (port 80) exist. A certificate and its key for the host `rocket-server.local` are in `/tmp/exam/mhagou-007-q5/` (`rocket.crt`, `rocket.key`).\n\nThe Traefik ingress controller (IngressClass `traefik`) is installed in the cluster, together with its CRDs (for example `Middleware`).\n\n1. Create the TLS Secret `secret-tls` in `rocket` from the provided certificate and key.\n2. Create the Ingress `rocket-ingress` in `rocket`: class `traefik`, host `rocket-server.local`, path `/` (type Prefix), backend Service `rocket-server` on port 80, TLS with the Secret `secret-tls`.\n3. All HTTP traffic for the host must be **redirected to HTTPS**.",
+      "concepts": [
+        "ingress",
+        "tls",
+        "traefik",
+        "middleware"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Secret secret-tls is made from the provided certificate and key",
+          "verificationScriptFile": "q5_s1_validate_tls_secret.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "Ingress rocket-ingress routes rocket-server.local to rocket-server:80 with TLS from secret-tls",
+          "verificationScriptFile": "q5_s2_validate_ingress.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "https://rocket-server.local is served by the application",
+          "verificationScriptFile": "q5_s3_validate_https_works.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "4",
+          "description": "The controller serves the provided certificate for rocket-server.local",
+          "verificationScriptFile": "q5_s4_validate_served_certificate.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "5",
+          "description": "HTTP requests for rocket-server.local are redirected to HTTPS",
+          "verificationScriptFile": "q5_s5_validate_http_redirect.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "6",
+      "namespace": "{{NODE01}}-daemon",
+      "machineHostname": "ckad9999",
+      "question": "The worker node `{{NODE01}}` (`ssh {{NODE01}}`) runs a Docker-style daemon as the systemd service `dockerd-lab`. It has no Docker Engine: this service accepts the same settings as `dockerd`: the flags `-H`/`--host` and `--group` in the unit, or `hosts` and `group` in `/etc/dockerd-lab/daemon.json` (the same setting in both places makes the daemon refuse to start).\n\nCurrently the daemon is bound to an external TCP port and its socket is not owned by the root group. Harden it:\n\n1. The daemon must run under the **root group**.\n2. **No external TCP connections** may be allowed to the daemon (it keeps its local unix socket `/run/dockerd-lab.sock`).\n3. The configuration must be **persistent** across restarts of the service.",
+      "concepts": [
+        "system hardening",
+        "container daemon",
+        "systemd"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The daemon runs with the group root (its socket belongs to root)",
+          "verificationScriptFile": "q6_s1_validate_socket_group_root.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "2",
+          "description": "The daemon accepts no TCP connections and keeps its unix socket",
+          "verificationScriptFile": "q6_s2_validate_no_tcp.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "After a restart of the service the group is root and there is no TCP listener",
+          "verificationScriptFile": "q6_s3_validate_persistent.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "7",
+      "namespace": "{{NODE02}}-sysctl",
+      "machineHostname": "ckad9999",
+      "question": "A security audit flagged the worker node `{{NODE02}}` (`ssh {{NODE02}}`) for ICMP redirects on the interfaces that will be created from now on (the `default` settings): the node accepts and sends them.\n\nDisable both, `net.ipv4.conf.default.accept_redirects` and `net.ipv4.conf.default.send_redirects`:\n\n- immediately, on the running kernel;\n- persistently, so that the settings survive a reboot of the node.",
+      "concepts": [
+        "kernel hardening",
+        "sysctl",
+        "node hardening"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "net.ipv4.conf.default.accept_redirects is 0 on the running kernel",
+          "verificationScriptFile": "q7_s1_validate_live_accept_redirects.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "net.ipv4.conf.default.send_redirects is 0 on the running kernel",
+          "verificationScriptFile": "q7_s2_validate_live_send_redirects.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "accept_redirects = 0 survives a reboot (sysctl files applied again)",
+          "verificationScriptFile": "q7_s3_validate_persistent_accept.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "4",
+          "description": "send_redirects = 0 survives a reboot (sysctl files applied again)",
+          "verificationScriptFile": "q7_s4_validate_persistent_send.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "8",
+      "namespace": "cluster-admission",
+      "machineHostname": "ckad9999",
+      "question": "The cluster administrator wants a strict labelling policy for the namespaces of the laboratory. Create it with a **ValidatingAdmissionPolicy**:\n\n- Name of the policy: `require-env-label`; name of its binding: `require-env-label-binding` (the binding must deny the requests that violate the policy).\n- Every **new Namespace whose name starts with `lab-`** must have the label `env` (the value does not matter, only the key).\n- Namespaces whose name does not start with `lab-` must not be affected.\n\nTo test it, create namespaces named `lab-...` with and without the label (they are removed when the session ends).",
+      "concepts": [
+        "admission control",
+        "validating admission policy",
+        "cel"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The policy require-env-label for namespaces and its binding (Deny) exist",
+          "verificationScriptFile": "q8_s1_validate_policy_and_binding.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "A namespace lab-... without the label env is rejected",
+          "verificationScriptFile": "q8_s2_validate_namespace_without_label_denied.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "A namespace lab-... with the label env (any value) is accepted",
+          "verificationScriptFile": "q8_s3_validate_namespace_with_label_accepted.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "4",
+          "description": "Namespaces that do not start with lab- are not affected",
+          "verificationScriptFile": "q8_s4_validate_other_namespaces_unaffected.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        }
+      ]
+    },
+    {
+      "id": "9",
+      "namespace": "devmem-lab",
+      "machineHostname": "ckad9999",
+      "question": "A test Pod `test-falco` runs on the worker node `{{NODE01}}` in the namespace `devmem-lab` (Falco is installed on `{{NODE01}}`). Do not modify the Pod and do not create `/dev/mem` inside it.\n\nConfigure a custom Falco rule that detects attempts of a process **inside a container** to read `/dev/mem`:\n\n1. Add the rule to `/etc/falco/falco_rules.local.yaml` on `{{NODE01}}`; the rule is named `devmem`.\n2. The detection must work even though `/dev/mem` does not exist in the container and the read therefore fails.\n3. The priority of the rule is `NOTICE`.\n4. The output of the alert is exactly `Shell (container_id=<container_id>)`, where `<container_id>` is the id of the container that triggered the event.\n5. The rules file must be valid (Falco must load it together with the default rules).\n\nHow the condition is written and how lists or macros are named is up to you. You can test with `kubectl exec -n devmem-lab test-falco -- cat /dev/mem`.",
+      "concepts": [
+        "falco",
+        "runtime security",
+        "custom rules"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The local rules file is valid, loads with the default rules and defines devmem",
+          "verificationScriptFile": "q9_s1_validate_rules_valid.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "The rule devmem fires when the container tries to read /dev/mem",
+          "verificationScriptFile": "q9_s2_validate_rule_fires.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "The priority of devmem is NOTICE",
+          "verificationScriptFile": "q9_s3_validate_priority_notice.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "4",
+          "description": "The output is Shell (container_id=<id of the container>)",
+          "verificationScriptFile": "q9_s4_validate_output_format.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "5",
+          "description": "The test Pod is unchanged and has no /dev/mem",
+          "verificationScriptFile": "q9_s5_validate_pod_untouched.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "namespace": "data-tier",
+      "machineHostname": "ckad9999",
+      "question": "Cilium is installed in the cluster. These test workloads exist (do not modify or delete them):\n\n- namespace `data-tier`: `cks-db` and `cks-db-peer` (the database Pods);\n- namespace `web-tier`: `cks-backend` (label `app=backend`) and `cks-frontend`;\n- namespace `outside-lab`: `cks-outsider` (also labelled `app=backend`);\n- namespace `dev-clients`: `cks-dev` and `cks-dev-other` (label `env=dev`). A NetworkPolicy `dev-initial-deny` denies their egress.\n\nEvery Pod answers on TCP 3306 and 8080 and on port 53 (TCP and UDP).\n\n**Part 1 - database.** Create a Cilium policy in `data-tier` that applies to all Pods of the namespace:\n\n- Ingress: allow only TCP port 3306, from the Pods with label `app=backend` in the namespace `web-tier`. Everything else must be denied: TCP 8080 from that backend, the frontend, a Pod with `app=backend` in another namespace, and the other database Pods.\n- Egress: allow the database Pods to send traffic only to the cluster DNS Pods (label `k8s-app=kube-dns`) in `kube-system`, on UDP port 53 and TCP port 53. All other egress (including TCP 3306, 8080 and 53 or UDP 53 to non-DNS endpoints) must be denied.\n\n**Part 2 - API access.** Create a Cilium policy that selects the Pods with `env=dev` in `dev-clients` and explicitly allows them to reach the Kubernetes API server with an entities-based egress rule (`toEntities: kube-apiserver`). Both `env=dev` Pods must keep HTTPS connectivity to the API server. Do not delete the policy `dev-initial-deny`.",
+      "concepts": [
+        "cilium",
+        "network policy",
+        "entities"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Only the app=backend Pods of web-tier reach the database Pods on 3306; the others are denied",
+          "verificationScriptFile": "q10_s1_validate_database_ingress_scope.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "2",
+          "description": "The allowed backend reaches TCP 3306 only, not 8080",
+          "verificationScriptFile": "q10_s2_validate_database_port_restricted.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "The database Pods can only send DNS (UDP and TCP 53) to the cluster DNS Pods",
+          "verificationScriptFile": "q10_s3_validate_database_egress_dns_only.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "4",
+          "description": "The env=dev Pods reach the Kubernetes API server over HTTPS",
+          "verificationScriptFile": "q10_s4_validate_dev_api_access.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "5",
+          "description": "A Cilium policy allows env=dev Pods to reach the entity kube-apiserver",
+          "verificationScriptFile": "q10_s5_validate_kube_apiserver_entity.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "11",
+      "namespace": "files",
+      "machineHostname": "ckad9999",
+      "question": "The directory `/tmp/exam/mhagou-007-q11/` has the binaries `kubelet`, `kube-proxy`, `kubeadm` and `kubectl` in `bin/`, and a reference file `reference.sha512` (SHA-512 checksums in the `sha512sum` format, paths relative to that directory).\n\nVerify the integrity of the binaries against the reference file and **delete the binaries that do not match**. The binaries that match must be kept as they are.",
+      "concepts": [
+        "integrity",
+        "checksums",
+        "supply chain"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The binaries that do not match the reference are deleted",
+          "verificationScriptFile": "q11_s1_validate_tampered_removed.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "The binaries that match the reference are kept untouched",
+          "verificationScriptFile": "q11_s2_validate_intact_kept.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    }
+  ]
+}
