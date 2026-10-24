@@ -1,0 +1,15 @@
+{
+  "lab": "mhagou-002",
+  "name": "CKS - MHagou - Exam 2",
+  "description": "Trivy, RBAC, AppArmor, Secrets, seccomp, gVisor, kubelet CIS findings, audit policy, Falco rule output, ImagePolicyWebhook, admission policy, NetworkPolicies and Dockerfile hardening",
+  "difficulty": "Hard",
+  "warmUpTimeInSeconds": 300,
+  "examDurationInMinutes": 120,
+  "workerNodes": 1,
+  "answers": "assets/exams/cks-mhagou/002/answers.md",
+  "questions": "assessment.json",
+  "totalMarks": 100,
+  "lowScore": 40,
+  "mediumScore": 60,
+  "highScore": 90
+}

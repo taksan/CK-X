@@ -1,0 +1,540 @@
+{
+  "questions": [
+    {
+      "id": "1",
+      "namespace": "spectacle",
+      "machineHostname": "ckad9999",
+      "question": "Four Pods run in the namespace `spectacle`. Scan the images they use with Trivy (installed on the jumphost) and **delete the Pods whose image has vulnerabilities of severity CRITICAL**.\n\nPods whose image has no CRITICAL vulnerability must be kept running (a HIGH vulnerability alone is not a reason to delete a Pod).",
+      "concepts": [
+        "trivy",
+        "image scanning",
+        "supply chain"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The Pod atlas (image with CRITICAL vulnerabilities) is deleted",
+          "verificationScriptFile": "q1_s1_validate_atlas_deleted.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "The Pod beacon (image with CRITICAL vulnerabilities) is deleted",
+          "verificationScriptFile": "q1_s2_validate_beacon_deleted.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "The Pods without CRITICAL vulnerabilities are kept",
+          "verificationScriptFile": "q1_s3_validate_clean_pods_kept.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "namespace": "seminar",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `seminar`:\n\n1. Create a ServiceAccount named `seminar-sa`.\n2. Create a Role named `k8s-seminar` that allows **only** the operations `create` and `update`, **only** on the resources `pods` and `deployments`.\n3. Create a RoleBinding named `k8s-seminar-bind` that binds the Role `k8s-seminar` to the ServiceAccount `seminar-sa`.",
+      "concepts": [
+        "rbac",
+        "service accounts",
+        "least privilege"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "ServiceAccount seminar-sa exists in seminar",
+          "verificationScriptFile": "q2_s1_validate_serviceaccount.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "Role k8s-seminar allows only create and update on pods and deployments",
+          "verificationScriptFile": "q2_s2_validate_role_rules.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "RoleBinding k8s-seminar-bind binds k8s-seminar to seminar-sa",
+          "verificationScriptFile": "q2_s3_validate_rolebinding.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "4",
+          "description": "seminar-sa can create and update pods and deployments in seminar, and nothing else",
+          "verificationScriptFile": "q2_s4_validate_effective_permissions.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "namespace": "apparmor-lab",
+      "machineHostname": "ckad9999",
+      "question": "The Pod `apparmor-pod` (image `nginx:alpine`) runs on the worker node `{{NODE01}}` in the namespace `apparmor-lab`. It has two problems: it runs with **privileged** permissions, and its container can **read the files in `/data/records`**.\n\nFix both:\n\n- The AppArmor profile `spectacleapp` is prepared in `/etc/apparmor.d/spectacleapp` on `{{NODE01}}`. Load it on `{{NODE01}}` and make the Pod use it, so that reading `/data/records` is denied inside the container. The web server of the Pod must keep working.\n- The Pod must not be privileged.\n- Create a ServiceAccount named `test-sa` in `apparmor-lab` and make the Pod use it.\n\nThe Pod must be running on `{{NODE01}}` when you are done (keep its name `apparmor-pod`).",
+      "concepts": [
+        "apparmor",
+        "pod security",
+        "privileged containers",
+        "service accounts"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The AppArmor profile spectacleapp is loaded on {{NODE01}}",
+          "verificationScriptFile": "q3_s1_validate_profile_loaded.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "apparmor-pod is not privileged and uses the AppArmor profile spectacleapp",
+          "verificationScriptFile": "q3_s2_validate_pod_spec.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "The ServiceAccount test-sa exists and apparmor-pod uses it",
+          "verificationScriptFile": "q3_s3_validate_serviceaccount.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "4",
+          "description": "apparmor-pod runs, reading /data/records is denied and the web server still answers",
+          "verificationScriptFile": "q3_s4_validate_read_denied_app_works.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "namespace": "secret-lab",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `secret-lab`:\n\n1. Create a Secret named `secret1` with the keys `user` = `admin` and `pass` = `P455W0RD`.\n2. Create a Pod named `secretpod` (image `nginx`) that mounts the Secret `secret1` as a **volume** with the `readOnly` option, in a path of your choice.",
+      "concepts": [
+        "secrets",
+        "volumes",
+        "read-only mounts"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Secret secret1 has user=admin and pass=P455W0RD",
+          "verificationScriptFile": "q4_s1_validate_secret.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "secretpod (nginx) mounts secret1 as a read-only volume",
+          "verificationScriptFile": "q4_s2_validate_pod_spec.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "secretpod runs and the secret files are readable and read-only inside the container",
+          "verificationScriptFile": "q4_s3_validate_secret_in_container.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "namespace": "alpha",
+      "machineHostname": "ckad9999",
+      "question": "Use a local seccomp profile for a Pod.\n\nThe profile `auditing.json` is provided on the jumphost in `/tmp/exam/mhagou-002-q5/`. The kubelet looks for local profiles in `/var/lib/kubelet/seccomp` on the node that runs the Pod.\n\n1. Install the profile on the worker node `{{NODE01}}`, under `/var/lib/kubelet/seccomp` (the directory does not exist yet).\n2. Create a Pod named `nginx-auditing` in the namespace `alpha`, using the `nginx` image, that runs on `{{NODE01}}` and uses this local profile in the **security context** of the Pod.\n\nThe Pod must be running.",
+      "concepts": [
+        "seccomp",
+        "kubelet",
+        "node hardening"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The provided profile is installed under /var/lib/kubelet/seccomp on {{NODE01}}",
+          "verificationScriptFile": "q5_s1_validate_profile_installed.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "nginx-auditing (nginx) runs on {{NODE01}} with the Localhost seccomp profile",
+          "verificationScriptFile": "q5_s2_validate_pod_spec.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "The container of nginx-auditing is running and confined by a seccomp filter",
+          "verificationScriptFile": "q5_s3_validate_pod_filtered.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "6",
+      "namespace": "sandbox-test",
+      "machineHostname": "ckad9999",
+      "question": "1. Create a RuntimeClass named `runsc-class` that uses the handler `runsc` (gVisor).\n2. Create a Pod named `gvisor-pod` (image `nginx`) in the namespace `sandbox-test` that runs with this RuntimeClass.\n\nThe Pod must be running inside the gVisor sandbox (the output of `dmesg` in the container shows it).",
+      "concepts": [
+        "runtimeclass",
+        "gvisor",
+        "container runtimes",
+        "sandboxing"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "RuntimeClass runsc-class uses the handler runsc",
+          "verificationScriptFile": "q6_s1_validate_runtimeclass.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "gvisor-pod (nginx) uses the RuntimeClass runsc-class",
+          "verificationScriptFile": "q6_s2_validate_pod_spec.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "gvisor-pod runs inside the gVisor sandbox",
+          "verificationScriptFile": "q6_s3_validate_sandbox_running.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "7",
+      "namespace": "{{NODE01}}",
+      "machineHostname": "ckad9999",
+      "question": "A kube-bench run on the worker node `{{NODE01}}` reported FAIL results for its kubelet configuration (`/var/lib/kubelet/config.yaml`):\n\n- the authorization mode is `AlwaysAllow`;\n- the kernel defaults are not protected (`protectKernelDefaults`);\n- the read-only port is enabled (`readOnlyPort`).\n\nFix these three findings on `{{NODE01}}` (`ssh {{NODE01}}`) so that the **running kubelet** uses the secure values (apply the change: restart the kubelet). The node must stay `Ready`.",
+      "concepts": [
+        "kube-bench",
+        "cis benchmark",
+        "kubelet",
+        "node hardening"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The kubelet of {{NODE01}} uses the authorization mode Webhook",
+          "verificationScriptFile": "q7_s1_validate_authorization_mode.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "The kubelet of {{NODE01}} protects the kernel defaults",
+          "verificationScriptFile": "q7_s2_validate_protect_kernel_defaults.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "The read-only port of the kubelet of {{NODE01}} is disabled",
+          "verificationScriptFile": "q7_s3_validate_read_only_port.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "8",
+      "namespace": "test",
+      "machineHostname": "ckad9999",
+      "question": "Enable auditing in the cluster (control plane `{{CONTROL_PLANE}}`).\n\nCreate an audit policy file `/etc/kubernetes/test-audit.yaml` that logs **only** these events:\n\n- namespace: `test`\n- level: `Metadata`\n- operations: `delete` and `update`\n- resources: `pods`\n\nEverything else must not be logged. Configure the API server to use this policy, to write the audit log to `/var/log/test-audit.log` and to keep the logs for at most **20 days**. Wait until the API server is healthy again.",
+      "concepts": [
+        "audit logging",
+        "kube-apiserver",
+        "audit policy"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "kube-apiserver uses /etc/kubernetes/test-audit.yaml, a valid audit Policy",
+          "verificationScriptFile": "q8_s1_validate_policy_file_flag.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "The audit log path is /var/log/test-audit.log and the retention is 20 days",
+          "verificationScriptFile": "q8_s2_validate_log_flags.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "Deleting and updating pods in the namespace test is logged at Metadata level",
+          "verificationScriptFile": "q8_s3_validate_pod_changes_logged.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "4",
+          "description": "Nothing else is logged",
+          "verificationScriptFile": "q8_s4_validate_nothing_else_logged.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "9",
+      "namespace": "space",
+      "machineHostname": "ckad9999",
+      "question": "A Pod in the namespace `space` (`worker-pod`, on `{{NODE02}}`) raised an alert because a shell was opened in its container. Falco runs as a service on `{{NODE02}}` (`falco-modern-bpf`, rules in `/etc/falco`).\n\nFind the Falco rule **`Terminal shell in container`** and change its **output** so that the alert starts with these four values, in this order, separated by commas (more text may follow). Each one is the real value of the event, not the words below:\n\n1. time in ISO 8601\n2. user id\n3. container id\n4. container image repository\n\nMake Falco use the changed rule (the service must be running). It is checked by opening a shell with a terminal in the Pod (`kubectl exec -it`) and reading the alert that Falco logs.",
+      "concepts": [
+        "falco",
+        "runtime security",
+        "falco rules"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The alert starts with the ISO 8601 timestamp",
+          "verificationScriptFile": "q9_s1_validate_alert_time.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "The second field of the alert is the user id",
+          "verificationScriptFile": "q9_s2_validate_alert_user_id.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "The third field of the alert is the container id",
+          "verificationScriptFile": "q9_s3_validate_alert_container_id.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "4",
+          "description": "The fourth field of the alert is the container image repository",
+          "verificationScriptFile": "q9_s4_validate_alert_image_repository.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "namespace": "image-review",
+      "machineHostname": "ckad9999",
+      "question": "Deploy an **ImagePolicyWebhook** admission controller on the cluster (control plane `{{CONTROL_PLANE}}`).\n\nThe webhook backend already runs on the control plane (`https://127.0.0.1:8443/image_policy`); it rejects the images of the registry `untrusted.example.com` and accepts the others. The admission configuration `/etc/kubernetes/pki/admission_configuration.yaml` has a problem that prevents it from working (its kubeconfig is `/etc/kubernetes/pki/admission_kube_config.yaml`).\n\n1. Fix the problem in `/etc/kubernetes/pki/admission_configuration.yaml` and make sure the policy is **implicit deny** (the images are denied when the backend cannot be reached).\n2. Make sure the plugin is enabled on the kube-apiserver **in addition to** the plugins already enabled, and that the API server loads this admission configuration.\n\nWait until the API server is healthy again. Pods with ordinary images (for example `nginx`) must still be accepted.",
+      "concepts": [
+        "imagepolicywebhook",
+        "admission control",
+        "kube-apiserver",
+        "supply chain"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "kube-apiserver enables ImagePolicyWebhook (the other plugins kept) and loads the admission configuration",
+          "verificationScriptFile": "q10_s1_validate_apiserver_wiring.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "The admission configuration is fixed: implicit deny and an existing kubeconfig",
+          "verificationScriptFile": "q10_s2_validate_admission_config.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "Images of untrusted.example.com are denied by the webhook",
+          "verificationScriptFile": "q10_s3_validate_untrusted_denied.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "4",
+          "description": "Pods with ordinary images are still admitted",
+          "verificationScriptFile": "q10_s4_validate_ordinary_images_allowed.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "11",
+      "namespace": "policy-lab",
+      "machineHostname": "ckad9999",
+      "question": "PodSecurityPolicy no longer exists in Kubernetes. Implement the same restrictions with a **ValidatingAdmissionPolicy** for the namespace `policy-lab` only:\n\n- Create a ValidatingAdmissionPolicy named `pod-psp` and a ValidatingAdmissionPolicyBinding named `pod-psp-binding` that applies it to the namespace `policy-lab` and **denies** the requests that violate it.\n- Privileged containers are not allowed (init containers included).\n- The only volume types allowed are `secret` and `configMap` (the `projected` volume that Kubernetes injects for the service account token must keep working).\n- `runAsUser`, `fsGroup`, `seLinux` and the supplemental groups stay unrestricted.\n\nThe namespace `open-lab` must stay unrestricted.",
+      "concepts": [
+        "admission control",
+        "validating admission policy",
+        "pod security"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Policy pod-psp and binding pod-psp-binding exist (Deny)",
+          "verificationScriptFile": "q11_s1_validate_policy_objects.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "Privileged Pods are rejected in policy-lab",
+          "verificationScriptFile": "q11_s2_validate_privileged_denied.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "policy-lab accepts secret and configMap volumes only",
+          "verificationScriptFile": "q11_s3_validate_volume_types.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "4",
+          "description": "RunAsAny settings are accepted in policy-lab and open-lab is unaffected",
+          "verificationScriptFile": "q11_s4_validate_scope_and_run_as_any.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        }
+      ]
+    },
+    {
+      "id": "12",
+      "namespace": "moon",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `moon`, create a NetworkPolicy named `np-restriction` for the Pod `nginx-pod` (port 80).\n\nOnly these sources may connect to `nginx-pod`:\n\n- all the Pods of the namespace `hello` (look at the labels of the namespace: `kubectl get ns hello --show-labels`);\n- the Pods with the label `app=backend` of **any** namespace.\n\nAll other ingress traffic to `nginx-pod` must be denied (including the other Pods of the namespace `moon`).",
+      "concepts": [
+        "network policy",
+        "ingress",
+        "namespace selector",
+        "pod selector"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "NetworkPolicy np-restriction exists in moon and restricts the ingress of nginx-pod",
+          "verificationScriptFile": "q12_s1_validate_policy_object.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "The Pods of the namespace hello can reach nginx-pod",
+          "verificationScriptFile": "q12_s2_validate_hello_namespace_allowed.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "The Pods labelled app=backend of any namespace can reach nginx-pod",
+          "verificationScriptFile": "q12_s3_validate_backend_label_allowed.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "4",
+          "description": "All other Pods are denied",
+          "verificationScriptFile": "q12_s4_validate_others_denied.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "13",
+      "namespace": "lockdown",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `lockdown`, create a NetworkPolicy named `all-deny` that denies **all ingress and all egress** traffic of every Pod of the namespace.",
+      "concepts": [
+        "network policy",
+        "default deny"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "NetworkPolicy all-deny selects every Pod and denies all ingress and egress",
+          "verificationScriptFile": "q13_s1_validate_policy_object.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "No Pod can reach the Pod server: all ingress is denied",
+          "verificationScriptFile": "q13_s2_validate_ingress_denied.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "3",
+          "description": "The Pod client cannot open any connection: all egress is denied",
+          "verificationScriptFile": "q13_s3_validate_egress_denied.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "14",
+      "namespace": "files",
+      "machineHostname": "ckad9999",
+      "question": "Analyse the Dockerfile `/tmp/exam/mhagou-002-q14/Dockerfile` and update it following security and best-practice rules:\n\n- the base image must be **pinned to a specific version** (keep `ubuntu`);\n- the container must **not run as root**: the last `USER` must be an unprivileged user (for example `nobody`);\n- `apt-get update` and the installation of `wget` and `curl` must be done in the **same `RUN` instruction**.\n\nDo not remove the other instructions.",
+      "concepts": [
+        "dockerfile best practices",
+        "non-root user",
+        "supply chain"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The base image is pinned to a specific ubuntu version",
+          "verificationScriptFile": "q14_s1_validate_base_image.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "The Dockerfile ends with an unprivileged user",
+          "verificationScriptFile": "q14_s2_validate_user.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "apt-get update and install run in one RUN instruction, wget and curl installed",
+          "verificationScriptFile": "q14_s3_validate_apt_layers.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "4",
+          "description": "The other instructions were kept",
+          "verificationScriptFile": "q14_s4_validate_other_instructions_kept.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        }
+      ]
+    }
+  ]
+}
