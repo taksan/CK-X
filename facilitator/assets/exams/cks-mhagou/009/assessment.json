@@ -1,0 +1,566 @@
+{
+  "questions": [
+    {
+      "id": "1",
+      "namespace": "{{NODE02}}",
+      "machineHostname": "ckad9999",
+      "question": "Secure the Docker daemon of the worker node `{{NODE02}}` (connect with `ssh {{NODE02}}`; the daemon runs as the service `docker`).\n\n1. Remove the user `developer` from the group `docker`. Do not remove the user from any other group.\n2. Reconfigure and restart the Docker daemon so that the socket `/var/run/docker.sock` is owned by the group `root`.\n3. Reconfigure and restart the Docker daemon so that it does not listen on any TCP port.\n\nAfter completing your work, make sure the Kubernetes cluster is healthy.",
+      "concepts": [
+        "docker",
+        "host hardening",
+        "least privilege"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The user developer is not a member of the group docker",
+          "verificationScriptFile": "q1_s1_validate_user_not_in_docker.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "developer keeps all its other groups (credited once removed from docker)",
+          "verificationScriptFile": "q1_s2_validate_other_groups_kept.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "3",
+          "description": "The restarted Docker daemon serves /var/run/docker.sock with the group root",
+          "verificationScriptFile": "q1_s3_validate_socket_group_root.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "4",
+          "description": "The Docker daemon listens on no TCP port, answers on its socket, and the cluster is healthy",
+          "verificationScriptFile": "q1_s4_validate_no_tcp_listener.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "namespace": "monitoring",
+      "machineHostname": "ckad9999",
+      "question": "A security audit found a Deployment that handles ServiceAccount tokens improperly, in the namespace `monitoring`.\n\n1. Modify the existing ServiceAccount `stats-monitor-sa` so that it does not automount API credentials.\n2. Modify the existing Deployment `stats-monitor` so that a ServiceAccount token is injected and mounted at `/var/run/secrets/kubernetes.io/serviceaccount/token`. Use a **projected volume named `token`** and mount it **read-only**.\n\nThe manifest of the Deployment is in `/tmp/exam/mhagou-009-q2/deployment.yaml` (apply it again after your change).",
+      "concepts": [
+        "service accounts",
+        "projected volumes",
+        "token automount"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "ServiceAccount stats-monitor-sa does not automount API credentials",
+          "verificationScriptFile": "q2_s1_validate_sa_automount_disabled.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "The Deployment projects the token (volume token) read-only at the required path",
+          "verificationScriptFile": "q2_s2_validate_deployment_projection.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "The rolled-out Pods expose a valid token of stats-monitor-sa from the projected volume",
+          "verificationScriptFile": "q2_s3_validate_pods_expose_token.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "namespace": "database",
+      "machineHostname": "ckad9999",
+      "question": "A Role bound to the ServiceAccount of a Pod grants overly permissive permissions. In the namespace `database` the Pod `web-pod` runs with the ServiceAccount `test-sa`. Reduce the permissions:\n\n1. Edit the existing Role that is bound to `test-sa` so that it only allows the verb `get`, only on resources of type `pods`.\n2. Create a new Role named `test-role-2` in the namespace `database` that only allows the verb `update`, only on resources of type `statefulsets`.\n3. Create a RoleBinding named `test-role-2-binding` that binds `test-role-2` to `test-sa`.",
+      "concepts": [
+        "rbac",
+        "least privilege",
+        "roles"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The Role bound to test-sa (test-role-1) allows only get on pods",
+          "verificationScriptFile": "q3_s1_validate_existing_role_restricted.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "Role test-role-2 allows only update on statefulsets",
+          "verificationScriptFile": "q3_s2_validate_new_role.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "test-role-2 is bound to the ServiceAccount of web-pod and allows only update on statefulsets",
+          "verificationScriptFile": "q3_s3_validate_new_binding.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "namespace": "incident-lab",
+      "machineHostname": "ckad9999",
+      "question": "A suspicious process is running inside a container of the namespace `incident-lab` on the worker node `{{NODE01}}` (`ssh {{NODE01}}`).\n\nUsing Falco, monitor the process activity of the containers of that node for at least **40 seconds** and identify the suspicious process.\n\nCreate an incident report `/tmp/exam/mhagou-009-q4/report` on `{{NODE01}}`. It must contain the observed process events in CSV format with exactly three fields per line and **no header**:\n\n`timestamp,uid,processName`\n\nThe report must contain the suspicious process and the UID under which it was executed. Do not stop or remove the containers.",
+      "concepts": [
+        "falco",
+        "runtime security",
+        "incident response"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The report is CSV with exactly timestamp,uid,processName per line, without header",
+          "verificationScriptFile": "q4_s1_validate_report_format.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "All timestamps of the report are valid",
+          "verificationScriptFile": "q4_s2_validate_report_timestamps.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "3",
+          "description": "The report contains the suspicious process with the UID it ran under",
+          "verificationScriptFile": "q4_s3_validate_suspicious_process.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "4",
+          "description": "The events cover the requested observation time",
+          "verificationScriptFile": "q4_s4_validate_observation_span.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "namespace": "frontend",
+      "machineHostname": "ckad9999",
+      "question": "Enable audit logging on the control plane (`{{CONTROL_PLANE}}`). Enable the log backend and make sure that:\n\n1. the logs are stored at `/var/log/kubernetes/logs.txt`,\n2. the log files are retained for **5** days,\n3. at most **10** old audit log files are retained.\n\nA basic policy is provided at `/etc/kubernetes/logpolicy/audit-policy.yaml` on the control plane. It only specifies what **not** to log. Edit and extend it so that it also logs:\n\n1. changes to `nodes` at the `RequestResponse` level,\n2. the request body of changes to `persistentvolumeclaims` in the namespace `frontend`,\n3. changes to `configmaps` and `secrets` in all namespaces at the `Metadata` level.\n\nAlso add a catch-all rule that logs all other requests at the `Metadata` level. Apply the modified policy: the API server must use it, and it must stay healthy.",
+      "concepts": [
+        "audit logging",
+        "kube-apiserver",
+        "audit policy"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "kube-apiserver uses the policy file and logs to /var/log/kubernetes/logs.txt",
+          "verificationScriptFile": "q5_s1_validate_policy_flag_and_log_path.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "Audit log retention: 5 days and 10 old files",
+          "verificationScriptFile": "q5_s2_validate_retention.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "3",
+          "description": "Node changes are logged at RequestResponse",
+          "verificationScriptFile": "q5_s3_validate_nodes_level.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "4",
+          "description": "The request body of PersistentVolumeClaim changes in frontend is logged",
+          "verificationScriptFile": "q5_s4_validate_pvc_request_body.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "5",
+          "description": "ConfigMap and Secret changes in all namespaces are logged at Metadata",
+          "verificationScriptFile": "q5_s5_validate_configmaps_secrets_level.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "6",
+          "description": "All other requests are logged at Metadata",
+          "verificationScriptFile": "q5_s6_validate_catch_all.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "7",
+          "description": "The do-not-log rules of the base policy are still effective",
+          "verificationScriptFile": "q5_s7_validate_exclusions_kept.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "6",
+      "namespace": "scanner-lab",
+      "machineHostname": "ckad9999",
+      "question": "A container image scanner is set up on the cluster, but it is not yet integrated into the cluster configuration. When complete, the scanner must scan the images of new Pods and reject vulnerable ones.\n\nGiven an incomplete configuration in the directory `/etc/kubernetes/epconfig` of the control plane (`{{CONTROL_PLANE}}`: `admission-config.yaml`, `webhook.kubeconfig` and the CA `webhook.pem`) and a functional container image scanner with the HTTPS endpoint `https://wakanda.local:8081/image_policy`:\n\n1. Enable the necessary plugins to create an image policy.\n2. Validate the control configuration and change it to an **implicit deny**.\n3. Edit the configuration to point to the provided HTTPS endpoint correctly.\n\nThe API server must be healthy afterwards. For your tests: the scanner treats the image `nginx:1.16` as vulnerable and accepts `registry.k8s.io/pause:3.10` (the namespace `scanner-lab` is yours for server-side dry-runs).",
+      "concepts": [
+        "imagepolicywebhook",
+        "admission control",
+        "supply chain"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The ImagePolicyWebhook plugin is enabled with an admission configuration file",
+          "verificationScriptFile": "q6_s1_validate_plugin_enabled.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "The active configuration is an implicit deny (defaultAllow false)",
+          "verificationScriptFile": "q6_s2_validate_implicit_deny.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "3",
+          "description": "The webhook kubeconfig points to https://wakanda.local:8081/image_policy",
+          "verificationScriptFile": "q6_s3_validate_endpoint.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "4",
+          "description": "A Pod with the vulnerable image is rejected by the scanner",
+          "verificationScriptFile": "q6_s4_validate_vulnerable_denied.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "5",
+          "description": "An approved image is still admitted (credited once the vulnerable image is rejected)",
+          "verificationScriptFile": "q6_s5_validate_approved_admitted.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "7",
+      "namespace": "web-tier",
+      "machineHostname": "ckad9999",
+      "question": "An Nginx Pod named `nginx` runs in the namespace `web-tier` on the worker node `{{NODE02}}` (`ssh {{NODE02}}`). It has two containers: `nginx` and `log-agent`.\n\nUsing Falco, analyse the behaviour of the **`nginx` container** for at least **20 seconds**, with filters that detect newly spawned and executed processes in that container.\n\nStore the incident file at `/tmp/exam/mhagou-009-q7/falco-incident.txt` on `{{NODE02}}`, one detected incident per line in exactly this format (brackets included):\n\n`[timestamp],[uid],[processName]`\n\nOnly processes executed in the `nginx` container may be in the file (not those of `log-agent`), and the file must contain only these records.",
+      "concepts": [
+        "falco",
+        "runtime security",
+        "container filters"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "One [timestamp],[uid],[processName] record per line",
+          "verificationScriptFile": "q7_s1_validate_report_format.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "The processes executed in the nginx container are in the report",
+          "verificationScriptFile": "q7_s2_validate_nginx_process.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "The processes of the other container of the Pod are not in the report",
+          "verificationScriptFile": "q7_s3_validate_other_container_excluded.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "4",
+          "description": "The observation lasted long enough and happened during the exam",
+          "verificationScriptFile": "q7_s4_validate_observation.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "8",
+      "namespace": "{{NODE01}}",
+      "machineHostname": "ckad9999",
+      "question": "A service is listening on port 389 on the worker node `{{NODE01}}` (`ssh {{NODE01}}`).\n\nFind the process-id of the process of the service, store the names of all its open files in `/tmp/exam/mhagou-009-q8/files.txt` on `{{NODE01}}`, and delete the binary of the service.",
+      "concepts": [
+        "host hardening",
+        "processes",
+        "open files"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The names of the open files of the service were saved on {{NODE01}}",
+          "verificationScriptFile": "q8_s1_validate_open_files_list.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "The binary of the service was deleted",
+          "verificationScriptFile": "q8_s2_validate_binary_deleted.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "9",
+      "namespace": "john",
+      "machineHostname": "ckad9999",
+      "question": "Create a user named `john` that authenticates with a client certificate:\n\n1. Generate a private key and a Certificate Signing Request for `john` (`CN=john`), create the CertificateSigningRequest in the cluster and approve it. Fetch the signed certificate and save it to `/tmp/exam/mhagou-009-q9/john.crt`.\n2. In the namespace `john` create a Role named `john-role` that allows listing `pods` and `secrets`.\n3. Create a RoleBinding named `john-role-binding` in the namespace `john` that attaches the Role `john-role` to the user `john`.\n4. Verify the permissions with `kubectl auth can-i`.",
+      "concepts": [
+        "certificate signing requests",
+        "users",
+        "rbac"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "A valid CertificateSigningRequest for CN=john exists",
+          "verificationScriptFile": "q9_s1_validate_csr_exists.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "The CSR of john is approved",
+          "verificationScriptFile": "q9_s2_validate_csr_approved.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "3",
+          "description": "The signed certificate of john is saved in john.crt",
+          "verificationScriptFile": "q9_s3_validate_certificate_fetched.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "4",
+          "description": "Role john-role grants list on pods and secrets",
+          "verificationScriptFile": "q9_s4_validate_role.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "5",
+          "description": "RoleBinding john-role-binding binds john-role to the user john",
+          "verificationScriptFile": "q9_s5_validate_rolebinding.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "6",
+          "description": "john can list pods and secrets in the namespace john",
+          "verificationScriptFile": "q9_s6_validate_permissions.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "namespace": "testing",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `testing` create a NetworkPolicy named `deny-all` that denies all traffic of type Ingress and Egress for every Pod of the namespace.",
+      "concepts": [
+        "network policy",
+        "default deny"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "NetworkPolicy deny-all selects all Pods, isolates ingress and egress and allows nothing",
+          "verificationScriptFile": "q10_s1_validate_policy.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "No Pod can reach the Pod server (same or other namespace)",
+          "verificationScriptFile": "q10_s2_validate_ingress_blocked.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "The Pods of testing cannot open connections nor resolve DNS names",
+          "verificationScriptFile": "q10_s3_validate_egress_blocked.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "11",
+      "namespace": "files",
+      "machineHostname": "ckad9999",
+      "question": "Harden a container configuration. The files are in `/tmp/exam/mhagou-009-q11/`: review the existing `Dockerfile` and `deployment.yaml` (a Pod manifest) and improve their security configuration.\n\n1. Modify the `Dockerfile` so that:\n   - the Ubuntu base image is pinned to an explicit release tag or an immutable digest instead of an unpinned image;\n   - the container runs as the user `test-user` (UID 5487) instead of root.\n2. Modify `deployment.yaml` so that:\n   - the container runs as UID 5487;\n   - the container does not run in privileged mode.\n\nDo not add, remove or modify any other Dockerfile instruction or manifest setting.",
+      "concepts": [
+        "dockerfile best practices",
+        "securityContext",
+        "least privilege"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The Ubuntu base image is pinned to an explicit release tag or digest",
+          "verificationScriptFile": "q11_s1_validate_base_image.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "The Dockerfile selects test-user (UID 5487) instead of root",
+          "verificationScriptFile": "q11_s2_validate_dockerfile_user.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "No other Dockerfile instruction was changed (credited once base and user are fixed)",
+          "verificationScriptFile": "q11_s3_validate_dockerfile_unchanged.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "4",
+          "description": "The container of the manifest runs as UID 5487",
+          "verificationScriptFile": "q11_s4_validate_manifest_uid.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "5",
+          "description": "The container of the manifest is not privileged",
+          "verificationScriptFile": "q11_s5_validate_manifest_not_privileged.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "6",
+          "description": "No other setting of the manifest was changed (credited once uid and privileged are fixed)",
+          "verificationScriptFile": "q11_s6_validate_manifest_unchanged.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        }
+      ]
+    },
+    {
+      "id": "12",
+      "namespace": "kube-system",
+      "machineHostname": "ckad9999",
+      "question": "The API server of the kubeadm cluster (control plane `{{CONTROL_PLANE}}`) has been configured to allow unauthenticated access. Secure it:\n\n- **Forbid anonymous authentication**: requests without credentials to the API endpoints (`/api`, `/apis`, `/version`, ...) must be answered with HTTP 401. The kubelet probes the API server's `/livez` and `/readyz` endpoints **without credentials**, so these health endpoints must keep answering unauthenticated requests and the kube-apiserver Pod must stay Ready. Use the structured **AuthenticationConfiguration** (`--authentication-config` in the static Pod manifest `/etc/kubernetes/manifests/kube-apiserver.yaml`; make the file available inside the Pod).\n- Use the authorization modes `Node,RBAC`.\n- Enable the `NodeRestriction` admission controller.\n- Make sure the API server remains available after the changes.\n\nFinally, remove the ClusterRoleBinding `system:anonymous`.",
+      "concepts": [
+        "api server hardening",
+        "anonymous auth",
+        "authentication configuration",
+        "authorization",
+        "admission control"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The kube-apiserver uses an AuthenticationConfiguration that disables anonymous access or limits it to the health endpoints",
+          "verificationScriptFile": "q12_s1_validate_authentication_config.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "Requests without credentials to the API endpoints are answered with HTTP 401",
+          "verificationScriptFile": "q12_s2_validate_anonymous_rejected.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "3",
+          "description": "The health endpoints stay anonymous and the kube-apiserver Pod stays Ready (credited with the change)",
+          "verificationScriptFile": "q12_s3_validate_health_probes_keep_working.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "4",
+          "description": "Authorization modes Node,RBAC and the NodeRestriction admission plugin",
+          "verificationScriptFile": "q12_s4_validate_authz_and_admission.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "5",
+          "description": "The ClusterRoleBinding system:anonymous was removed",
+          "verificationScriptFile": "q12_s5_validate_anonymous_binding_removed.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        }
+      ]
+    },
+    {
+      "id": "13",
+      "namespace": "registry-gate",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `registry-gate` Pods must not use mutable image references. Use a **ValidatingAdmissionPolicy** to reject, in that namespace only, every Pod that uses an image with the tag `latest` or an image without any tag or digest.\n\n- Create the ValidatingAdmissionPolicy `deny-latest-tag` and the ValidatingAdmissionPolicyBinding `deny-latest-tag-binding` that applies it to the namespace `registry-gate` and **denies** the requests that violate it.\n- Pods whose images are pinned with a tag other than `latest` or with a digest must still be accepted.\n- Other namespaces must not be affected.",
+      "concepts": [
+        "validating admission policy",
+        "supply chain",
+        "image tags"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The policy deny-latest-tag and the binding deny-latest-tag-binding exist (Deny)",
+          "verificationScriptFile": "q13_s1_validate_objects.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "Images tagged latest or without a tag are rejected in registry-gate",
+          "verificationScriptFile": "q13_s2_validate_latest_denied.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "Pods with pinned images are still accepted (credited once latest is rejected)",
+          "verificationScriptFile": "q13_s3_validate_pinned_allowed.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "4",
+          "description": "The policy applies to registry-gate only (credited once latest is rejected)",
+          "verificationScriptFile": "q13_s4_validate_scope.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        }
+      ]
+    }
+  ]
+}

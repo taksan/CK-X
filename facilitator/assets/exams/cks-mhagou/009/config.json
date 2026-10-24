@@ -1,0 +1,15 @@
+{
+  "lab": "mhagou-009",
+  "name": "CKS - MHagou - Exam 9",
+  "description": "Docker daemon, projected tokens, RBAC, Falco, audit policy, ImagePolicyWebhook, CSR, deny-all NetworkPolicy, API server hardening and admission policies",
+  "difficulty": "Hard",
+  "warmUpTimeInSeconds": 300,
+  "examDurationInMinutes": 120,
+  "workerNodes": 1,
+  "answers": "assets/exams/cks-mhagou/009/answers.md",
+  "questions": "assessment.json",
+  "totalMarks": 100,
+  "lowScore": 40,
+  "mediumScore": 60,
+  "highScore": 90
+}
