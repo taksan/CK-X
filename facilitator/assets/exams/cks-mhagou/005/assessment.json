@@ -1,0 +1,309 @@
+{
+  "questions": [
+    {
+      "id": "1",
+      "namespace": "network-security",
+      "machineHostname": "ckad9999",
+      "question": "Create NetworkPolicy resources in the namespace `network-security` to enforce the following traffic rules.\n\nExisting Pods (every Pod has the label `app=<its role>`; both backends carry `app=backend`):\n\n- namespace `network-security`: `frontend`, `backend-a`, `backend-b`, `database`, `other`\n- namespace `network-security-peer`: `frontend`, `database`\n\nRequirements:\n\n1. `backend-a` and `backend-b` accept ingress traffic from `frontend` in `network-security`, only on TCP port 8080.\n2. `backend-a` and `backend-b` deny ingress traffic from `database` and `other` in `network-security` and from `frontend` in `network-security-peer`, on any port.\n3. `backend-a` and `backend-b` may connect to `database` in `network-security`, only on TCP port 5432.\n4. `backend-a` and `backend-b` may not connect to `frontend` or `other` in `network-security`, nor to `database` in `network-security-peer`, nor to `database` on ports other than TCP 5432.\n\nDo not modify, delete, relabel or recreate the existing test Pods. You may create one or more NetworkPolicies; their names and structure are your choice.",
+      "concepts": [
+        "network policy",
+        "ingress",
+        "egress",
+        "namespace isolation"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Ingress: only network-security/frontend reaches the backends on 8080; database, other and the peer frontend are denied",
+          "verificationScriptFile": "q1_s1_validate_ingress_sources.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "2",
+          "description": "Ingress: the backends accept TCP 8080 only (8081, 5432 and 5433 are denied)",
+          "verificationScriptFile": "q1_s2_validate_ingress_ports.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "Egress: the backends reach only the database of network-security (frontend, other and the peer database denied)",
+          "verificationScriptFile": "q1_s3_validate_egress_targets.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "4",
+          "description": "Egress: the backends reach the database on TCP 5432 only",
+          "verificationScriptFile": "q1_s4_validate_egress_ports.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "5",
+          "description": "The fixture Pods are untouched and both backends are covered by ingress and egress policies",
+          "verificationScriptFile": "q1_s5_validate_pods_untouched.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "namespace": "secure-ingress",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `secure-ingress` the Deployment `web` is exposed by the Service `web-service` (port 80), and the TLS Secret `secure-app-tls` holds a certificate for `secure-app.example.com`.\n\nCreate an Ingress in `secure-ingress` that provides TLS for a routed hostname:\n\n- It has an HTTP host rule for `secure-app.example.com` that routes to `web-service` on port 80.\n- Its TLS configuration covers the same host and references the Secret `secure-app-tls` (type `kubernetes.io/tls`, unexpired certificate valid for the host, with its private key).\n\nThe ingress controller of the cluster is Traefik (it is the default IngressClass). The check includes an HTTPS request to the controller for the host.",
+      "concepts": [
+        "ingress",
+        "tls",
+        "secrets"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "An Ingress routes a host to the Service web-service on port 80",
+          "verificationScriptFile": "q2_s1_validate_ingress_routes.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "The Ingress configures TLS for a routed host with a valid, unexpired kubernetes.io/tls Secret and its key",
+          "verificationScriptFile": "q2_s2_validate_tls_configuration.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "3",
+          "description": "The ingress controller serves the certificate of the Secret over HTTPS and reaches the application",
+          "verificationScriptFile": "q2_s3_validate_served_certificate.sh",
+          "expectedOutput": "0",
+          "weightage": 5
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "namespace": "api-security",
+      "machineHostname": "ckad9999",
+      "question": "Configure Pod Security and RBAC in the namespace `api-security`:\n\n1. Configure the namespace to **enforce** the Pod Security Standard `baseline` profile (with the namespace label).\n2. Make sure at least one Pod in the namespace is **Running and Ready** (use an image that can run as a non-root user). Every container of that Pod (init and ephemeral containers included) must comply with `baseline`, run as a **non-root** user, set `allowPrivilegeEscalation: false`, not be privileged and not add the `SYS_ADMIN` capability.\n3. Create the ServiceAccount `pss-viewer` in `api-security`.\n4. Configure RBAC so that `pss-viewer` can read the Namespace object `api-security`, including its labels (`kubectl get namespace api-security --show-labels` works when run as the ServiceAccount). It must not be able to read any other Namespace, nor any other resource.\n\nYou choose the names of the RBAC resources. Do not disable or bypass Pod Security admission.",
+      "concepts": [
+        "pod security standards",
+        "pod security admission",
+        "rbac",
+        "service accounts"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The namespace api-security enforces the baseline profile",
+          "verificationScriptFile": "q3_s1_validate_baseline_label.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "Pod Security admission rejects a privileged Pod in api-security",
+          "verificationScriptFile": "q3_s2_validate_privileged_rejected.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "A Running and Ready Pod is compliant (non-root, no privilege escalation, not privileged, no SYS_ADMIN)",
+          "verificationScriptFile": "q3_s3_validate_compliant_pod.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "4",
+          "description": "The ServiceAccount pss-viewer exists",
+          "verificationScriptFile": "q3_s4_validate_serviceaccount.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "5",
+          "description": "pss-viewer can read the Namespace api-security and nothing wider",
+          "verificationScriptFile": "q3_s5_validate_namespace_read_access.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "namespace": "metadata-protect",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `metadata-protect` the Pod `metadata-client` (label `app=metadata-client`) must not be able to reach the cloud instance metadata service at `169.254.169.254` (any port).\n\nCreate a NetworkPolicy in `metadata-protect` that blocks the egress traffic to `169.254.169.254/32`, while **all other egress traffic stays allowed** (public addresses, private ranges and the addresses next to the metadata one).",
+      "concepts": [
+        "network policy",
+        "egress",
+        "metadata protection",
+        "ipblock"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "A NetworkPolicy restricts the egress of the Pod metadata-client",
+          "verificationScriptFile": "q4_s1_validate_policy_selects_workload.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "Egress to 169.254.169.254 is denied on every tested port (TCP and UDP)",
+          "verificationScriptFile": "q4_s2_validate_metadata_blocked.sh",
+          "expectedOutput": "0",
+          "weightage": 5
+        },
+        {
+          "id": "3",
+          "description": "All other egress is still allowed (credited only when the metadata address is blocked)",
+          "verificationScriptFile": "q4_s3_validate_other_egress_allowed.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "namespace": "{{CONTROL_PLANE}}",
+      "machineHostname": "ckad9999",
+      "question": "Calculate and record the SHA-256 checksums of the Kubernetes binaries `kubectl` and `kubelet` installed on the control plane node `{{CONTROL_PLANE}}` (`ssh {{CONTROL_PLANE}}`).\n\nWrite both checksum records to `/tmp/exam/mhagou-005-q5/verified-hashes.txt` **on `{{CONTROL_PLANE}}`**. Each record contains the SHA-256 digest and the binary name or its full path (for example the output of `sha256sum`).\n\nDo not modify or replace the Kubernetes binaries.",
+      "concepts": [
+        "binary verification",
+        "checksums",
+        "supply chain"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The record for kubectl has the SHA-256 of the installed binary",
+          "verificationScriptFile": "q5_s1_validate_kubectl_record.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "2",
+          "description": "The record for kubelet has the SHA-256 of the installed binary",
+          "verificationScriptFile": "q5_s2_validate_kubelet_record.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "3",
+          "description": "Both records are right and the binaries were not modified",
+          "verificationScriptFile": "q5_s3_validate_binaries_untouched.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "6",
+      "namespace": "rbac-minimize",
+      "machineHostname": "ckad9999",
+      "question": "Configure least-privilege RBAC for the ServiceAccount `app-reader` in the namespace `rbac-minimize` (it exists and has no permission).\n\nUsing a **namespaced Role and RoleBinding**, grant `app-reader` read-only access (`get`, `list` and `watch`) to the following resources in `rbac-minimize`:\n\n- Pods\n- Services\n- Deployments\n\nNothing else may be granted. The names of the Role and the RoleBinding are your choice.",
+      "concepts": [
+        "rbac",
+        "least privilege",
+        "role",
+        "rolebinding"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "app-reader can get, list and watch Pods, Services and Deployments in rbac-minimize",
+          "verificationScriptFile": "q6_s1_validate_read_access.sh",
+          "expectedOutput": "0",
+          "weightage": 5
+        },
+        {
+          "id": "2",
+          "description": "app-reader has no permission beyond that read access (credited when the read access exists)",
+          "verificationScriptFile": "q6_s2_validate_no_excess_permissions.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "3",
+          "description": "app-reader is bound by a RoleBinding to a namespaced Role, with no ClusterRoleBinding",
+          "verificationScriptFile": "q6_s3_validate_namespaced_role_binding.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "7",
+      "namespace": "service-account-caution",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `service-account-caution`:\n\n1. Create the ServiceAccount `minimal-sa` with **token automounting disabled by default** (`automountServiceAccountToken: false` on the ServiceAccount).\n2. Create the Deployment `secure-app` with 2 replicas (image `nginx`, for example `nginx:stable`) that uses `minimal-sa`.\n3. The Pods of `secure-app` must have **no ServiceAccount token** mounted.",
+      "concepts": [
+        "service accounts",
+        "automount",
+        "least privilege"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "minimal-sa exists with automountServiceAccountToken: false",
+          "verificationScriptFile": "q7_s1_validate_serviceaccount.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "The Deployment secure-app runs 2 ready replicas of nginx with the ServiceAccount minimal-sa",
+          "verificationScriptFile": "q7_s2_validate_deployment.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "No ServiceAccount token is mounted in the Pods of secure-app",
+          "verificationScriptFile": "q7_s3_validate_no_token_in_pods.sh",
+          "expectedOutput": "0",
+          "weightage": 5
+        }
+      ]
+    },
+    {
+      "id": "8",
+      "namespace": "api-restrict",
+      "machineHostname": "ckad9999",
+      "question": "Restrict the access to the Kubernetes API from the Pods in the namespace `api-restrict`.\n\n- Find the address of the Kubernetes API Service (ClusterIP, port 443).\n- Configure egress NetworkPolicy so that Pods in `api-restrict` cannot access the Kubernetes API.\n- Pods with the label `role=admin` must still be able to access the Kubernetes API.\n- All other egress traffic must remain allowed.\n\nThe existing test Pods are `admin-pod` (label `role=admin`) and `restricted-pod` (label `role=restricted`). Do not modify, delete, relabel or recreate them. The names and implementation of the policies are your choice.\n\nTest the result from the Pods (for example `kubectl exec -n api-restrict admin-pod -- curl -sk https://<ClusterIP>:443/version`): the network plugin of this cluster applies the policies after the Service address has been translated to the real address of the API server (`kubectl get endpoints kubernetes`), so check what really happens instead of assuming it.",
+      "concepts": [
+        "network policy",
+        "egress",
+        "api server",
+        "least privilege"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "restricted-pod cannot reach the Kubernetes API (Service address and real endpoint)",
+          "verificationScriptFile": "q8_s1_validate_restricted_blocked.sh",
+          "expectedOutput": "0",
+          "weightage": 6
+        },
+        {
+          "id": "2",
+          "description": "admin-pod still reaches the API on 443 while restricted-pod does not",
+          "verificationScriptFile": "q8_s2_validate_admin_allowed.sh",
+          "expectedOutput": "0",
+          "weightage": 6
+        },
+        {
+          "id": "3",
+          "description": "Other egress stays allowed for both Pods (credited when the API is blocked for restricted-pod)",
+          "verificationScriptFile": "q8_s3_validate_other_egress_allowed.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    }
+  ]
+}

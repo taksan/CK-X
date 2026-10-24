@@ -1,0 +1,15 @@
+{
+  "lab": "mhagou-005",
+  "name": "CKS - MHagou - Exam 5",
+  "description": "Network policies (ingress, egress, metadata, API server), TLS ingress, Pod Security Standards, binary checksums, RBAC and ServiceAccount tokens",
+  "difficulty": "Hard",
+  "warmUpTimeInSeconds": 260,
+  "examDurationInMinutes": 120,
+  "workerNodes": 1,
+  "answers": "assets/exams/cks-mhagou/005/answers.md",
+  "questions": "assessment.json",
+  "totalMarks": 100,
+  "lowScore": 40,
+  "mediumScore": 60,
+  "highScore": 90
+}
