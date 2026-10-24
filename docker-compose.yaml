@@ -1,7 +1,7 @@
 services:
   # VNC Server (Ubuntu)
   remote-desktop:
-    image: nishanb/ck-x-simulator-remote-desktop:latest
+    image: ${IMAGE_PREFIX:-nishanb}/ck-x-simulator-remote-desktop:latest
     build:
       context: ./remote-desktop
     hostname: terminal
@@ -32,7 +32,7 @@ services:
 
   # Web Application (not directly exposed to users)
   webapp:
-    image: nishanb/ck-x-simulator-webapp:latest
+    image: ${IMAGE_PREFIX:-nishanb}/ck-x-simulator-webapp:latest
     build:
       context: ./app
     expose:
@@ -63,7 +63,7 @@ services:
 
   # Nginx Reverse Proxy - ONLY SERVICE EXPOSED TO USERS
   nginx:
-    image: nishanb/ck-x-simulator-nginx:latest
+    image: ${IMAGE_PREFIX:-nishanb}/ck-x-simulator-nginx:latest
     build:
       context: ./nginx
     depends_on:
@@ -92,7 +92,7 @@ services:
 
   # Jump Host (ckad9999 and ckad9988)
   jumphost:
-    image: nishanb/ck-x-simulator-jumphost:latest
+    image: ${IMAGE_PREFIX:-nishanb}/ck-x-simulator-jumphost:latest
     build:
       context: ./jumphost
     hostname: ckad9999
@@ -102,6 +102,10 @@ services:
       - "22" # SSH port (internal only)
     volumes:
       - kube-config:/home/candidate/.kube # Shared volume for Kubernetes config
+    depends_on:
+      external-kubeconfig: # only active with the "external-cluster" profile
+        condition: service_completed_successfully
+        required: false
     deploy:
       resources:
         limits:
@@ -119,7 +123,7 @@ services:
 
   # Remote Terminal Service
   remote-terminal:
-    image: nishanb/ck-x-simulator-remote-terminal:latest
+    image: ${IMAGE_PREFIX:-nishanb}/ck-x-simulator-remote-terminal:latest
     build:
       context: ./remote-terminal
     hostname: remote-terminal
@@ -143,7 +147,7 @@ services:
 
   # KIND Kubernetes Cluster
   k8s-api-server: # Service name that will be used for DNS resolution
-    image: nishanb/ck-x-simulator-cluster:latest
+    image: ${IMAGE_PREFIX:-nishanb}/ck-x-simulator-cluster:latest
     build:
       context: ./kind-cluster
     container_name: kind-cluster
@@ -171,6 +175,48 @@ services:
       retries: 20
       start_period: 60s
 
+  # External cluster (optional, profile "external-cluster")
+  # Installs a user-provided kubeconfig (and optionally an SSH directory) into the
+  # shared kube-config volume and flags it, so the jumphost scripts use that
+  # cluster instead of creating a k3d one. Usage:
+  #   kubectl config view --flatten --minify --kubeconfig <file> > /path/to/flat-kubeconfig
+  #   EXTERNAL_KUBECONFIG=/path/to/flat-kubeconfig \
+  #   EXTERNAL_SSH_DIR=/path/to/ssh-dir \
+  #   docker compose --profile external-cluster up -d --build
+  # EXTERNAL_SSH_DIR is optional; it holds an ssh "config" (host aliases such as
+  # node01/node02/k8s-api-server, logging in as root) and the pre-authorized keys.
+  # To go back to k3d: docker compose down --volumes (removes the flag).
+  external-kubeconfig:
+    profiles: ["external-cluster"]
+    image: alpine:3.20
+    restart: "no"
+    volumes:
+      - kube-config:/home/candidate/.kube
+      - ${EXTERNAL_KUBECONFIG:-/dev/null}:/external/kubeconfig:ro
+      - ${EXTERNAL_SSH_DIR:-/dev/null}:/external/ssh:ro
+    command:
+      - sh
+      - -c
+      - |
+        if [ ! -s /external/kubeconfig ]; then
+          echo "EXTERNAL_KUBECONFIG must point to a non-empty, flattened kubeconfig file" >&2
+          exit 1
+        fi
+        cp /external/kubeconfig /home/candidate/.kube/kubeconfig
+        chmod 644 /home/candidate/.kube/kubeconfig
+        rm -rf /home/candidate/.kube/.ssh-external
+        if [ -d /external/ssh ]; then
+          mkdir -p /home/candidate/.kube/.ssh-external
+          cp -R /external/ssh/. /home/candidate/.kube/.ssh-external/
+          echo "External SSH directory installed"
+        else
+          echo "EXTERNAL_SSH_DIR not set: nodes will not be reachable over SSH" >&2
+        fi
+        touch /home/candidate/.kube/.external-cluster
+        echo "External kubeconfig installed"
+    networks:
+      - ckx-network
+
   # Redis Database for Facilitator
   redis:
     image: redis:alpine
@@ -197,7 +243,7 @@ services:
 
   # Facilitator Service
   facilitator:
-    image: nishanb/ck-x-simulator-facilitator:latest
+    image: ${IMAGE_PREFIX:-nishanb}/ck-x-simulator-facilitator:latest
     build:
       context: ./facilitator
       dockerfile: Dockerfile

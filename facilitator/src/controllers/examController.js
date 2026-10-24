@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const redisClient = require('../utils/redisClient');
 const MetricService = require('../services/metricService');
+const nodeVarsService = require('../services/nodeVarsService');
 
 /**
  * Create a new exam
@@ -229,8 +230,10 @@ async function getExamAnswers(req, res) {
     
     logger.info(`Sending answers file for exam ${examId} from path ${fullAnswersPath}`);
     
-    // Send the file directly instead of a JSON response
-    return res.sendFile(fullAnswersPath);
+    // The answers name the nodes with placeholders ({{NODE01}} ...): render them with the cluster of the exam
+    const nodeVars = await nodeVarsService.getNodeVars(examId);
+    const answers = nodeVarsService.substitute(fs.readFileSync(fullAnswersPath, 'utf8'), nodeVars);
+    return res.type(path.extname(fullAnswersPath) === '.html' ? 'html' : 'text/markdown; charset=utf-8').send(answers);
   } catch (error) {
     logger.error('Error retrieving exam answers', { error: error.message });
     return res.status(500).json({ 

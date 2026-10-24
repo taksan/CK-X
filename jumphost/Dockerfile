@@ -20,6 +20,21 @@ RUN apt-get update && apt-get install -y \
     docker.io\
     jq
 
+# Install Trivy (image vulnerability scanning)
+RUN wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor -o /usr/share/keyrings/trivy.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" > /etc/apt/sources.list.d/trivy.list \
+    && apt-get update && apt-get install -y trivy
+
+# Install kubesec (static analysis of Kubernetes manifests)
+RUN ARCH=$(dpkg --print-architecture) \
+    && curl -fsSL "https://github.com/controlplaneio/kubesec/releases/download/v2.15.0/kubesec_linux_${ARCH}.tar.gz" | tar -xz -C /usr/local/bin kubesec \
+    && chmod +x /usr/local/bin/kubesec
+
+# Install cosign (container image signing and verification)
+RUN ARCH=$(dpkg --print-architecture) \
+    && curl -fsSL -o /usr/local/bin/cosign "https://github.com/sigstore/cosign/releases/download/v2.4.1/cosign-linux-${ARCH}" \
+    && chmod +x /usr/local/bin/cosign
+
 # Accept build-time architecture argument
 ARG TARGETARCH
 
@@ -73,10 +88,12 @@ RUN chown -R candidate: /home/candidate/.kube /home/candidate/.minikube
 # Copy exam environment scripts
 COPY scripts/prepare-exam-env.sh /usr/local/bin/prepare-exam-env
 COPY scripts/cleanup-exam-env.sh /usr/local/bin/cleanup-exam-env
+COPY scripts/ckx-node-vars.sh /usr/local/bin/ckx-node-vars
 
 # Make scripts executable
 RUN chmod +x /usr/local/bin/prepare-exam-env
 RUN chmod +x /usr/local/bin/cleanup-exam-env
+RUN chmod +x /usr/local/bin/ckx-node-vars
 
 RUN mkdir -p /tmp/exam-env
 

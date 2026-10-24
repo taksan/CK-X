@@ -9,6 +9,7 @@ const { v4: uuidv4 } = require('uuid');
 const logger = require('../utils/logger');
 const redisClient = require('../utils/redisClient');
 const jumphostService = require('./jumphostService');
+const nodeVarsService = require('./nodeVarsService');
 const MetricService = require('./metricService');
 
 /**
@@ -267,9 +268,10 @@ async function getExamQuestions(examId) {
       };
     }
     
-    // Read and parse questions.json
+    // Read and parse questions.json (the names of the nodes are placeholders: {{NODE01}}, {{NODE02}} ...)
     const questionsData = fs.readFileSync(fullQuestionsPath, 'utf8');
-    const questions = JSON.parse(questionsData);
+    const nodeVars = await nodeVarsService.getNodeVars(examId);
+    const questions = JSON.parse(nodeVarsService.substitute(questionsData, nodeVars));
     
     logger.info(`Successfully retrieved questions for exam ${examId}`);
     
