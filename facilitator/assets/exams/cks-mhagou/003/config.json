@@ -1,0 +1,15 @@
+{
+  "lab": "mhagou-003",
+  "name": "CKS - MHagou - Exam 3",
+  "description": "kube-apiserver anonymous auth and ImagePolicyWebhook, Cilium mutual authentication, Falco, kubesec, Istio mTLS (mesh-wide and per namespace), SBOM, Pod Security and seccomp, projected tokens",
+  "difficulty": "Hard",
+  "warmUpTimeInSeconds": 300,
+  "examDurationInMinutes": 120,
+  "workerNodes": 1,
+  "answers": "assets/exams/cks-mhagou/003/answers.md",
+  "questions": "assessment.json",
+  "totalMarks": 100,
+  "lowScore": 40,
+  "mediumScore": 60,
+  "highScore": 90
+}

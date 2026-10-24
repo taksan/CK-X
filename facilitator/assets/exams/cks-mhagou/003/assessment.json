@@ -1,0 +1,374 @@
+{
+  "questions": [
+    {
+      "id": "1",
+      "namespace": "{{CONTROL_PLANE}}",
+      "machineHostname": "ckad9999",
+      "question": "Kube-bench reports that anonymous authentication is enabled on the API server.\n\nOn the control plane (`{{CONTROL_PLANE}}`) disable anonymous access to the API: unauthenticated requests to the API endpoints (`/api`, `/apis`, `/version`, ...) must be answered with HTTP 401. The kubelet probes the API server's `/livez` and `/readyz` endpoints **without credentials**, so these health endpoints must keep answering unauthenticated requests, and the kube-apiserver Pod must stay Ready.\n\nUse the structured **AuthenticationConfiguration** (`--authentication-config` in the static Pod manifest `/etc/kubernetes/manifests/kube-apiserver.yaml`; make the file available inside the Pod). Wait until the API server is healthy again.",
+      "concepts": [
+        "kube-apiserver",
+        "anonymous authentication",
+        "authentication configuration",
+        "cluster hardening"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The kube-apiserver uses an AuthenticationConfiguration that disables anonymous access or limits it to the health endpoints",
+          "verificationScriptFile": "q1_s1_validate_authentication_config.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "The running API server answers requests without credentials with HTTP 401 on /api, /apis and /version",
+          "verificationScriptFile": "q1_s2_validate_anonymous_rejected.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "3",
+          "description": "The health endpoints still answer unauthenticated probes and the kube-apiserver stays Ready",
+          "verificationScriptFile": "q1_s3_validate_health_probes_keep_working.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "namespace": "cilium-lab",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `cilium-lab` the Deployment `nginx` (Service `nginx`, port 80) is called by the Pods `curlpod` (label `app=curlpod`) and `other` (label `app=other`). There is no network policy yet.\n\nCreate a CiliumNetworkPolicy so that:\n\n- the nginx Pods (`app=nginx`) accept ingress traffic on TCP port 80 **only from the Pods labelled `app=curlpod`**;\n- that traffic requires **mutual authentication** (`authentication.mode: required`).\n\nAfterwards `curlpod` must still reach the Service `nginx`, and the Pod `other` must not.",
+      "concepts": [
+        "cilium",
+        "mutual authentication",
+        "network policy",
+        "zero trust"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "A CiliumNetworkPolicy allows app=curlpod to app=nginx and requires mutual authentication",
+          "verificationScriptFile": "q2_s1_validate_policy.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "curlpod reaches nginx and Cilium holds a SPIRE authentication entry for both identities",
+          "verificationScriptFile": "q2_s2_validate_authenticated_traffic.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "3",
+          "description": "Only curlpod may reach nginx: the Pod other is denied",
+          "verificationScriptFile": "q2_s3_validate_other_clients_denied.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "namespace": "memory-watch",
+      "machineHostname": "ckad9999",
+      "question": "Falco runs as a service on the worker node `{{NODE01}}` and reads `/etc/falco/falco_rules.local.yaml`. You need to detect any container that opens the sensitive device `/dev/mem`.\n\nOn `{{NODE01}}` add a rule named **`Detect dev mem access`** to `/etc/falco/falco_rules.local.yaml`:\n\n- the condition checks that `fd.name` is exactly `/dev/mem` (other files, for example `/dev/mem2`, must not trigger it);\n- the output is exactly: `Sensitive file opened (user=%user.name command=%proc.cmdline file=%fd.name)`;\n- the priority is `WARNING`.\n\nMake sure the running Falco loads the rule, then trigger it by creating a Pod in the namespace `memory-watch` on `{{NODE01}}` that opens `/dev/mem`. The validation also runs its own harmless probe Pod there.",
+      "concepts": [
+        "falco",
+        "runtime security",
+        "falco rules",
+        "syscalls"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The rule 'Detect dev mem access' has the requested priority, output and a condition on /dev/mem",
+          "verificationScriptFile": "q3_s1_validate_rule_definition.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "Falco on {{NODE01}} raises the WARNING alert for a Pod that opens /dev/mem",
+          "verificationScriptFile": "q3_s2_validate_alert_fires.sh",
+          "expectedOutput": "0",
+          "weightage": 5
+        },
+        {
+          "id": "3",
+          "description": "The rule fires for /dev/mem only (not for /dev/mem2)",
+          "verificationScriptFile": "q3_s3_validate_condition_not_too_broad.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "namespace": "image-gate",
+      "machineHostname": "ckad9999",
+      "question": "The cluster is meant to admit images through an **ImagePolicyWebhook**. The webhook backend runs on the control plane (`{{CONTROL_PLANE}}`) at `https://127.0.0.1:8443/image_policy`; it denies every image whose repository is under `untrusted/` (for example `docker.io/untrusted/app:1.0`) and allows all other images.\n\nThe configuration is in `/etc/kubernetes/admission/` on the control plane (`admission_config.yaml`, `kubeconf` and the CA `ca.pem`), but the API server does not apply the policy correctly yet:\n\n- Fix the configuration so that the backend is reached. The policy must **deny the images if the backend cannot be reached** (fail closed).\n- Enable the ImagePolicyWebhook admission plugin **in addition to the plugins that are already enabled**, point the API server to `/etc/kubernetes/admission/admission_config.yaml` and make the directory available inside the kube-apiserver static Pod.\n- Wait until the API server is healthy again. Pods with other images must still be admitted in the namespace `image-gate`.",
+      "concepts": [
+        "imagepolicywebhook",
+        "admission control",
+        "kube-apiserver",
+        "supply chain"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "kube-apiserver enables ImagePolicyWebhook (NodeRestriction kept) with the admission config; fail-closed and existing kubeconfig",
+          "verificationScriptFile": "q4_s1_validate_apiserver_wiring.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "Images from untrusted/ repositories are denied by the webhook",
+          "verificationScriptFile": "q4_s2_validate_untrusted_denied.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "3",
+          "description": "Pods with other images are still admitted (webhook reachable)",
+          "verificationScriptFile": "q4_s3_validate_trusted_admitted.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "namespace": "kubesec-lab",
+      "machineHostname": "ckad9999",
+      "question": "The manifest `/tmp/exam/mhagou-003-q5/pod.yaml` (on the jumphost) describes the Pod `web` of the namespace `kubesec-lab`. `kubesec` is installed on the jumphost.\n\nScan the manifest with `kubesec` and improve it by applying its recommendations until the score is **at least 12** and there is no critical advice. Keep the Pod name, the namespace and the image (`nginxinc/nginx-unprivileged:1.27-alpine`; it listens on port 8080 and writes temporary files to `/tmp`).\n\nThen deploy the Pod from the improved manifest in `kubesec-lab`: it must run, as a non-root user and with a read-only root filesystem.",
+      "concepts": [
+        "kubesec",
+        "static analysis",
+        "security context",
+        "supply chain"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The manifest scores at least 12 with kubesec, no critical advice, and is still the Pod web",
+          "verificationScriptFile": "q5_s1_validate_manifest_score.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "2",
+          "description": "The live Pod web runs, scores at least 12 and runs unprivileged with a read-only root filesystem",
+          "verificationScriptFile": "q5_s2_validate_pod_deployed_hardened.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    },
+    {
+      "id": "6",
+      "namespace": "hello-mesh",
+      "machineHostname": "ckad9999",
+      "question": "Istio is installed. The Service `helloworld` (port 5000) of the namespace `hello-mesh` runs with an Istio sidecar. The Pod `client` of the namespace `mesh-client` has **no** sidecar and calls it over plaintext.\n\n1. Create a **mesh-wide** PeerAuthentication (the root namespace `istio-system`, no selector) that enforces **STRICT** mTLS.\n2. Verify that the Pod `client` can no longer reach `http://helloworld.hello-mesh.svc.cluster.local:5000/hello`.\n3. Make the `client` work again by bringing its namespace into the mesh: enable sidecar injection in `mesh-client` and recreate the Pod `client` so that it runs with the proxy.\n\nOther plain clients (for example the Pod `plain` of the namespace `mesh-plain`) must stay unable to reach `helloworld`.",
+      "concepts": [
+        "istio",
+        "mtls",
+        "peerauthentication",
+        "zero trust"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "A mesh-wide PeerAuthentication in istio-system requires STRICT mTLS",
+          "verificationScriptFile": "q6_s1_validate_mesh_wide_strict.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "The client Pod runs with a ready Istio proxy and reaches helloworld",
+          "verificationScriptFile": "q6_s2_validate_client_in_mesh.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "3",
+          "description": "A client without a sidecar cannot reach helloworld over plaintext",
+          "verificationScriptFile": "q6_s3_validate_plaintext_rejected.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "7",
+      "namespace": "restricted-zone",
+      "machineHostname": "ckad9999",
+      "question": "The namespace `restricted-zone` runs a critical payment service (Deployment and Service `payment-service`, port 8000). Istio is installed. A legacy Pod without a sidecar (`legacy` in the namespace `legacy-zone`) exists.\n\n1. Make sure that **all new Pods** of `restricted-zone` automatically get an Istio sidecar, and that the running `payment-service` Pods run with it as well.\n2. Enforce **STRICT mTLS for the whole namespace** with a PeerAuthentication in `restricted-zone` (no selector, no exceptions).\n3. Verify that the legacy Pod from `legacy-zone` cannot reach `payment-service`, while a Pod with a sidecar inside `restricted-zone` can.",
+      "concepts": [
+        "istio",
+        "sidecar injection",
+        "mtls",
+        "peerauthentication"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "New Pods of restricted-zone get an Istio sidecar automatically",
+          "verificationScriptFile": "q7_s1_validate_auto_injection.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "The running payment-service Pods have a ready Istio proxy",
+          "verificationScriptFile": "q7_s2_validate_service_has_sidecar.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "A namespace-wide STRICT PeerAuthentication without exceptions exists in restricted-zone",
+          "verificationScriptFile": "q7_s3_validate_namespace_strict_policy.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "4",
+          "description": "The legacy Pod is blocked and an injected client reaches payment-service",
+          "verificationScriptFile": "q7_s4_validate_legacy_blocked_injected_allowed.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "8",
+      "namespace": "files",
+      "machineHostname": "ckad9999",
+      "question": "Generate a Software Bill of Materials (SBOM) for the container image `nginx:1.19` in **SPDX** format with `trivy` (installed on the jumphost; `bom` and `syft` are not) and save it to `/tmp/exam/mhagou-003-q8/sbom.spdx`. Either SPDX JSON or SPDX tag-value is accepted.",
+      "concepts": [
+        "sbom",
+        "spdx",
+        "trivy",
+        "supply chain"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The file is an SPDX document with packages",
+          "verificationScriptFile": "q8_s1_validate_spdx_document.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "The SBOM describes the image nginx:1.19",
+          "verificationScriptFile": "q8_s2_validate_describes_image.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "The SBOM lists the OS packages of the image (50 or more, nginx 1.19.x among them)",
+          "verificationScriptFile": "q8_s3_validate_generated_from_image.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "9",
+      "namespace": "secure-team",
+      "machineHostname": "ckad9999",
+      "question": "A critical application needs to be locked down.\n\n1. Create the namespace **`secure-team`**. Enforce the **Baseline** Pod Security Standard on it (privileged Pods must be rejected) and make it **warn** about **Restricted** violations (Pods that only violate Restricted must still be accepted).\n2. A seccomp profile is available on the worker nodes as `profiles/audit.json` (in `/var/lib/kubelet/seccomp`). Create the Pod **`nginx-secure`** (image `nginx`) in `secure-team` that uses this profile as a `Localhost` seccomp profile. The Pod must run.",
+      "concepts": [
+        "pod security standards",
+        "pod security admission",
+        "seccomp"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Namespace secure-team exists and is Active",
+          "verificationScriptFile": "q9_s1_validate_namespace.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "secure-team enforces the baseline standard (a privileged Pod is rejected)",
+          "verificationScriptFile": "q9_s2_validate_baseline_enforced.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "secure-team warns about restricted violations without rejecting the Pod",
+          "verificationScriptFile": "q9_s3_validate_restricted_warning.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "4",
+          "description": "A Restricted-compliant Pod is accepted without warnings",
+          "verificationScriptFile": "q9_s4_validate_restricted_pod_accepted.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "5",
+          "description": "Pod nginx-secure runs with the Localhost profile profiles/audit.json (Seccomp: 2)",
+          "verificationScriptFile": "q9_s5_validate_seccomp_pod.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "namespace": "token-lab",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `token-lab` the ServiceAccount `token-bot` exists.\n\n1. Create a ServiceAccount **token Secret** for `token-bot` (type `kubernetes.io/service-account-token`) and wait until it holds a token.\n2. Create the Pod **`token-pod`** (image `nginx:alpine`) that uses `token-bot` and does **not** mount the default token automatically (`automountServiceAccountToken: false`).\n3. Mount a **projected volume** read-only at `/var/run/secrets/custom-tokens` in the Pod with two sources: the token of the Secret (the key `token`, any file name) and a `serviceAccountToken` that **expires after 3600 seconds** (any file name).",
+      "concepts": [
+        "service accounts",
+        "projected volumes",
+        "token expiration",
+        "secrets"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "A ServiceAccount token Secret of token-bot exists and holds a token",
+          "verificationScriptFile": "q10_s1_validate_token_secret.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "Pod token-pod uses token-bot with automountServiceAccountToken false and no default token",
+          "verificationScriptFile": "q10_s2_validate_pod_no_automount.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "The Secret token is projected at /var/run/secrets/custom-tokens and authenticates as token-bot",
+          "verificationScriptFile": "q10_s3_validate_secret_in_projected_volume.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "4",
+          "description": "A projected serviceAccountToken with 3600 seconds lifetime is mounted there and is valid",
+          "verificationScriptFile": "q10_s4_validate_expiring_projected_token.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    }
+  ]
+}
