@@ -1,0 +1,1939 @@
+## Certified Kubernetes Security Specialist (CKS) – Practice Test 3 - Results
+
+Attempt 1
+
+-
+-
+-
+-
+-
+
+Question 1Correct
+
+In Namespace `team-dev`, there is an existing CiliumNetworkPolicy `default-allow` which allows all namespace-internal traffic and cluster DNS.
+The task is to create two new Layer 3 and Layer 4 CiliumNetworkPolicy named `team-dev` and `team-dev-2` that:
+
+1. Enables `**Mutual Authentication**` for outgoing traffic from Pods with label `role=database` to Pods with label `role=api-service`.
+
+2. Denies outgoing **ICMP traffic** from Pods of Deployment `stuff` to Pods behind Service `backend`.
+
+
+Your answer is correct
+
+solution
+
+#### Explanation
+
+**Step 1: Verify Pod labels and IPs**
+
+
+
+1. kubectl get pod -n team-dev --show-labels -o wide
+
+
+
+Example output:
+
+
+
+1. NAME                         ...     IP           ...   LABELS
+2. database-0                   ...   10.244.2.122    ...   ...,role=database
+3. api-service-57f557cd65-rhzd7 ...   10.244.1.171    ...   ...,role=api-service
+4. api-service-57f557cd65-xcqwz ...   10.244.2.44     ...   ...,role=api-service
+5. stuff-866696fc57-6ccgr       ...   10.244.1.15     ...   ...,role=stuff
+6. stuff-866696fc57-d8qk4       ...   10.244.2.222    ...   ...,role=stuff
+7. backend-0                    ...   10.244.3.10     ...   ...,role=backend
+
+
+
+**Step 2: Create CiliumNetworkPolicy to deny ICMP traffic from stuff to backend**
+
+
+
+1. # cnp-icmp-deny.yaml
+2. apiVersion: "cilium.io/v2"
+3. kind: CiliumNetworkPolicy
+4. metadata:
+5.   name: team-dev
+6.   namespace: team-dev
+7. spec:
+8.   endpointSelector:
+9.     matchLabels:
+10.       role: stuff  # Pods behind Deployment "stuff"
+11.   egressDeny:
+12.   - toEndpoints:
+13.     - matchLabels:
+14.         role: backend  # Pods behind Service "backend"
+15.     icmps:
+16.     - fields:
+17.       - type: 8
+18.         family: IPv4
+19.       - type: EchoRequest
+20.         family: IPv6
+
+
+
+21. kubectl apply -f cnp-icmp-deny.yaml
+
+
+
+**Step 3: Create CiliumNetworkPolicy to enforce Mutual Authentication from database → api-service**
+
+
+
+1. # cnp-mtls.yaml
+2. apiVersion: "cilium.io/v2"
+3. kind: CiliumNetworkPolicy
+4. metadata:
+5.   name: team-dev-2
+6.   namespace: team-dev
+7. spec:
+8.   endpointSelector:
+9.     matchLabels:
+10.       role: database
+11.   egress:
+12.   - toEndpoints:
+13.     - matchLabels:
+14.         role: api-service
+15.     authentication:
+16.       mode: "required"  # Enable Mutual Authentication
+
+
+
+17. kubectl apply -f cnp-mtls.yaml
+
+
+
+**Step 4: Verify policies are applied**
+
+
+
+1. # Check applied CiliumNetworkPolicies
+2. kubectl get cnp -n team-dev
+
+3. # Test ICMP block (stuff -> backend)
+4. kubectl exec -n team-dev stuff-866696fc57-6ccgr -- ping -c 1 <backend-pod-IP>
+5. # Should fail due to ICMP deny
+
+6. # Test outgoing traffic from database to api-service (Mutual Authentication enforced)
+7. kubectl exec -n team-dev database-0 -- curl http://<api-service-pod-IP>
+8. # Connection should succeed only if authenticated
+
+
+
+**Explanation**
+
+- `endpointSelector` → selects Pods the policy applies to.
+
+- `egressDeny` → blocks ICMP traffic from `stuff` Pods to `backend` Pods.
+
+- `egress.authentication.mode=required` → enforces Mutual TLS for traffic from `database` to `api-service`.
+
+- By keeping `default-allow` intact, intra-namespace and DNS traffic remain allowed.
+
+
+
+
+⚠️ Notes:
+
+- ICMP types 8 (IPv4) and EchoRequest (IPv6) are the ones used for ping.
+
+- Mutual Authentication ensures encrypted and verified communication between selected Pods.
+
+- Policies are additive; multiple CNPs can coexist to enforce different rules for different traffic flows.
+
+
+
+
+N/A
+
+**Resources**
+
+Domain
+
+Minimize Microservice Vulnerabilities (20%) ✅
+
+Question 2Correct
+
+For security hardening, enforce a **Seccomp profile** on Pods in Namespace `secure-app`.
+
+- Create a custom Seccomp profile that allows only basic system calls (`read`, `write`, `exit`, `sigreturn`).
+
+- Apply the Seccomp profile to the Deployment `webapp` to restrict system calls for its containers.
+
+- Verify that the Pod is running and that the Seccomp profile is enforced.
+
+
+Your answer is correct
+
+solution
+
+#### Explanation
+
+**Step 1: Create a custom Seccomp profile**
+
+
+Save the profile as `/opt/course/2/seccomp-profile.json`:
+
+
+
+1. {
+2.   "defaultAction": "SCMP_ACT_ERRNO",
+3.   "architectures": [
+4.     "SCMP_ARCH_X86_64",
+5.     "SCMP_ARCH_X86",
+6.     "SCMP_ARCH_X32"
+7.   ],
+8.   "syscalls": [
+9.     {
+10.       "names": ["read", "write", "exit", "sigreturn"],
+11.       "action": "SCMP_ACT_ALLOW"
+12.     }
+13.   ]
+14. }
+
+
+
+15. mv /opt/course/2/seccomp-profile.json /var/lib/kubelet/seccomp/profiles/
+
+
+
+**Step 2: Apply the Seccomp profile to the Deployment**
+
+
+
+Edit the Deployment webapp in `**secure-app**` namespace:
+
+
+
+1. ---
+2. apiVersion: apps/v1
+3. kind: Deployment
+4. metadata:
+5.   name: webapp
+6.   namespace: secure-app
+7. spec:
+8.   replicas: 2
+9.   selector:
+10.     matchLabels:
+11.       app: webapp
+12.   template:
+13.     metadata:
+14.       labels:
+15.         app: webapp
+16.     spec:
+17.       containers:
+18.       - name: webapp
+19.         image: nginx:latest
+20.         securityContext:
+21.           seccompProfile:
+22.             type: Localhost
+23.             localhostProfile: profiles/seccomp-profile.json
+
+
+
+24. kubectl apply -f /opt/course/2/webapp.yaml
+
+
+
+**Step 3: Verify the Seccomp profile enforcement**
+
+
+
+1. # Check Pods
+2. kubectl get pod -n secure-app
+
+3. # Describe a Pod to see Seccomp profile applied
+4. kubectl describe pod <pod-name> -n secure-app | grep -i seccomp
+
+5. # Test that disallowed syscalls fail
+6. kubectl exec -it <pod-name> -n secure-app -- sh -c "exec /bin/bash"
+7. # Should fail due to Seccomp restrictions
+8. # Example: attempt a disallowed syscall (e.g., execve of /bin/bash)
+
+
+
+**Explanation**
+
+- Seccomp (Secure Computing Mode) restricts the system calls a container can make, limiting kernel-level attack surface.
+
+- `SCMP_ACT_ERRNO` denies all syscalls by default.
+
+- `Localhost` profile type allows using a custom JSON Seccomp file stored locally on the node.
+
+- By restricting to only `read`, `write`, `exit`, and `sigreturn`, the container can perform basic I/O without executing potentially dangerous syscalls
+
+
+
+
+⚠️ Notes:
+
+- Ensure the `seccomp-profile.json` file exists on each node under the correct path referenced in the Deployment.
+
+- Custom Seccomp profiles enhance container security by preventing kernel exploitation through syscalls.
+
+
+
+
+N/A
+
+**Resources**
+
+Domain
+
+System Hardening (10%) ✅
+
+Question 3Correct
+
+A Pod in namespace `ci-cd` mounts `**/var/run/docker.sock**` from the host.
+By default, the socket is **owned by root:docker** with permissions `0660`, allowing **any user in group docker** to control the Docker daemon.
+
+Your task is to **reduce the risk by restricting file permissions** without breaking essential CI/CD jobs.
+Specifically:
+
+1. Change ownership and group of `**docker.sock**` inside the Pod.
+
+2. Limit access using chmod so that **only the intended user** can access the socket.
+
+3. Verify that the container cannot run arbitrary containers if not authorized.
+
+
+Your answer is correct
+
+solution
+
+#### Explanation
+
+**Step 1: Inspect** `**docker.sock**` **permissions**
+
+
+
+1. kubectl exec -it <pod-name> -n ci-cd -- ls -l /var/run/docker.sock
+2. # Example output:
+3. # srw-rw---- 1 root docker 0 Aug 25 16:00 /var/run/docker.sock
+
+
+
+**Step 2: Adjust permissions and ownership inside Pod**
+
+
+
+1. kubectl exec -it <pod-name> -n ci-cd -- chown 65535:65535 /var/run/docker.sock
+2. kubectl exec -it <pod-name> -n ci-cd -- chmod 0600 /var/run/docker.sock
+
+3. # 65535:65535 → unprivileged user (nobody)
+4. # 0600 → only owner can read/write
+
+
+
+**Step 3: Apply** `**securityContext**` **for the container**
+
+
+
+1. securityContext:
+2.   runAsUser: 65535
+3.   runAsGroup: 65535
+4.   readOnlyRootFilesystem: true
+5.   allowPrivilegeEscalation: false
+6.   capabilities:
+7.     drop: ["ALL"]
+
+
+
+**Step 4: Verify the changes**
+
+
+
+1. kubectl exec -it <pod-name> -n ci-cd -- ls -l /var/run/docker.sock
+2. # srw------- 1 nobody nobody 0 Aug 21 16:15 /var/run/docker.sock
+
+3. # Try running docker commands
+4. kubectl exec -it <pod-name> -- docker ps   # should fail if not owner
+
+
+
+**Explanation**
+
+- `**/var/run/docker.sock**` is a **hostPath socket**, granting full Docker access to anyone who can write to it.
+
+- Changing **ownership to** `**unprivileged**` **user** prevents rootless escalation through the socket.
+
+- Restricting **chmod to 0600** ensures no other users in the container or host group can control Docker.
+
+- Combined with `**runAsUser**` and `**drop: ALL capabilities**`, this **significantly reduces the attack surface**.
+
+
+
+
+⚠️ Note:
+
+- In real environments, it's better to avoid mounting host `**docker.sock**`. Consider remote Docker API with TLS or Docker-in-Docker.
+
+
+
+
+N/A
+
+**Resources**
+
+Domain
+
+Minimize Microservice Vulnerabilities (20%) ✅
+
+Question 4Correct
+
+Use `**Trivy**` to scan container images used by Pods in the `nato` namespace for high or critical vulnerabilities.
+
+Delete any Pods that run images found to be severely vulnerable.
+
+Your answer is correct
+
+solution
+
+#### Explanation
+
+**Commands / Steps**
+
+
+
+1. # List all images used by Pods in the nato namespace
+2. kubectl get po -n nato -o yaml | grep -oP 'image:.*'
+
+3. # Check Trivy usage
+4. trivy image --help
+
+5. # Scan each image for HIGH or CRITICAL vulnerabilities
+6. trivy image --severity HIGH,CRITICAL nginx:1.19
+7. trivy image --severity HIGH,CRITICAL nginx:latest
+8. trivy image --severity HIGH,CRITICAL nginx:1.16
+
+9. # Delete Pods using vulnerable images
+10. kubectl delete --force po -n nato nginx-2 --grace-period 0
+11. kubectl delete --force po -n nato nginx-3 --grace-period 0
+
+12. # Verify remaining Pods
+13. kubectl get po -n nato
+
+
+
+**Verification Step:**
+
+
+
+1. # Ensure no Pods are running images with high or critical vulnerabilities
+2. kubectl get po -n nato -o wide
+
+
+
+⚠️ Note:
+
+- Trivy scans container images for vulnerabilities must be installed on the master node where these commands are executed.
+
+- `--severity HIGH,CRITICAL` filters results to only show high and critical severity issues.
+
+- `--force` flag forces deletion of the Pod.
+
+- `--grace-period 0` ensures immediate deletion without waiting for the Pod to be terminated.
+
+- Always scan images before deployment in production for continuous security.
+
+
+
+
+N/A
+
+**Resources**
+
+Domain
+
+Supply Chain Security (20%) ✅
+
+Question 5Correct
+
+Create a default-deny NetworkPolicy named `default-deny` in the `testing` namespace that blocks all Egress traffic for all Pods.
+`Optionally`, allow DNS egress if needed.
+
+Your answer is correct
+
+solution
+
+#### Explanation
+
+By applying a default-deny Egress NetworkPolicy with an empty `podSelector`, all Pods in the namespace are restricted from initiating outbound connections.
+Specific exceptions like DNS can be allowed by adding `egress` rules.
+
+
+
+**Commands / Steps**
+
+
+
+1. # default-deny-np.yaml
+2. apiVersion: networking.k8s.io/v1
+3. kind: NetworkPolicy
+4. metadata:
+5.   name: default-deny
+6.   namespace: testing
+7. spec:
+8.   podSelector: {}       # Applies to all pods in the testing namespace
+9.   policyTypes:
+10.   - Egress
+11.   # No rules in egress list blocks all egress traffic
+
+
+
+`**Optional**`:  Allow DNS `egress`
+
+
+
+1. # Optional: allow DNS egress to kube-system namespace
+2. apiVersion: networking.k8s.io/v1
+3. kind: NetworkPolicy
+4. metadata:
+5.   name: default-deny
+6.   namespace: testing
+7. spec:
+8.   podSelector: {}
+9.   policyTypes:
+10.   - Egress
+11.   egress:
+12.   - to:
+13.     - namespaceSelector:
+14.         matchLabels:
+15.           name: kube-system
+16.     ports:
+17.     - protocol: UDP
+18.       port: 53
+
+
+
+19. # You can also allow egress to DNS at all (into any direction)
+20. apiVersion: networking.k8s.io/v1
+21. kind: NetworkPolicy
+22. metadata:
+23.   name: default-deny
+24.   namespace: testing
+25. spec:
+26.   podSelector: {}
+27.   policyTypes:
+28.   - Egress
+29.   egress:
+30.   - to: []           # allow egress into any direction
+31.     ports:
+32.     - protocol: UDP
+33.       port: 53
+
+34. # Apply the default-deny NetworkPolicy
+35. kubectl apply -f default-deny-np.yaml
+
+
+
+**Verification Step:**
+
+
+
+1. # Ensure all Pods are restricted from egress
+2. kubectl get networkpolicy -n testing
+3. kubectl describe networkpolicy default-deny -n testing
+
+
+
+⚠️ Note:
+
+- NetworkPolicy with empty `podSelector` applies to all Pods in the namespace.
+
+- By default, an empty `egress` array `[]` blocks all egress traffic.
+
+- Allowing DNS (`UDP 53`) is optional depending on cluster requirements.
+
+- Ensure the NetworkPolicy name in the `apply` command matches the file name.
+
+
+
+
+N/A
+
+**Resources**
+
+Domain
+
+Minimize Microservice Vulnerabilities (20%) ✅
+
+Question 6Correct
+
+Create a service account named `backend-qa` in the `qa` namespace that cannot access any secrets.
+
+Update the existing `frontend` Pod to use this service account.
+
+Your answer is correct
+
+solution
+
+#### Explanation
+
+By creating a service account without secret permissions and binding it to the Pod, we ensure the Pod cannot read secrets while still being able to access its own Pod resources.
+
+
+
+**Commands / Steps**
+
+
+
+1. # Create the service account
+2. kubectl create serviceaccount backend-qa -n qa
+
+3. # Create a Role that allows only pod access (no secret access)
+4. kubectl create role no-secret-access -n qa --verb=get,list --resource=pods
+
+5. # deny-secrets-role.yaml
+6. apiVersion: rbac.authorization.k8s.io/v1
+7. kind: Role
+8. metadata:
+9.   name: no-secret-access
+10.   namespace: qa
+11. rules:
+12.   # Only allow access to pods
+13.   - apiGroups: [""]
+14.     resources: ["pods"]
+15.     verbs: ["get", "list"]
+
+
+
+16. # Bind the Role to the service account
+17. kubectl create rolebinding backend-qa-nosecret --role=no-secret-access --serviceaccount=qa:backend-qa -n qa
+
+18. # Edit the frontend Pod manifest to use the new service account
+19. vim /home/pod-manifest/frontend-pod.yaml
+
+
+
+20. # /home/cert_masters/frontend-pod.yaml
+21. apiVersion: v1
+22. kind: Pod
+23. metadata:
+24.   name: frontend
+25.   namespace: qa
+26. spec:
+27.   serviceAccountName: backend-qa       # Use the restricted service account
+28.   containers:
+29.     - name: frontend
+30.       image: nginx
+
+
+
+31. # Apply the updated Pod manifest
+32. kubectl apply -f /home/cert_masters/frontend-pod.yaml
+
+33. # Verify the service account is assigned
+34. kubectl get pod frontend -n qa -o jsonpath='{.spec.serviceAccountName}'
+
+35. # Test secret access for the service account (should be denied)
+36. kubectl auth can-i list secrets --as=system:serviceaccount:qa:backend-qa -n qa
+
+
+
+**Verification Step:**
+
+- The Pod should be running using the `backend-qa` service account.
+
+- The command `kubectl auth can-i list secrets --as=system:serviceaccount:qa:backend-qa -n qa` must return `no`
+
+- Ensures least privilege: `backend-qa` can only interact with Pods, no access to secrets.
+
+- Any existing RoleBindings that grant secret access to this service account must be removed.
+
+- This approach maintains namespace isolation while restricting sensitive operations.
+
+
+
+
+N/A
+
+**Resources**
+
+Domain
+
+Cluster Hardening (15%) ✅
+
+Question 7Correct
+
+Use **Falco** or **Sysdig** to monitor a single-container Pod named `tomcat` for anomalous process activity.
+
+Detect processes that spawn or execute unusual commands over a period of at least 40 seconds.
+
+Store detected incidents on the worker node in `/home/anomalous/report` with the format `[timestamp],[uid],[processName]`.
+
+Your answer is correct
+
+solution
+
+#### Explanation
+
+**Falco** and **Sysdig** can monitor container activity in real time.
+Here, a `**custom Falco rule**` captures newly executed processes inside containers.
+The incident file is stored on the worker node to comply with best practices and avoid moving sensitive data to the master.
+
+
+
+**Commands / Steps**
+
+
+
+**Step 1: Connect to the worker node**
+
+
+
+1. # Connect to the worker node
+2. ssh node-01
+3. sudo -i
+
+4. # Edit Falco rules to detect container drift
+5. vim /etc/falco/falco_rules.local.yaml
+
+
+
+**Step 2: Add the following rule**
+
+
+
+1. - rule: Container Drift Detected
+2.   desc: New executable created in a container
+3.   condition: >
+4.     evt.type in (open,openat,creat) and evt.is_open_exec=true and container
+5.     and not runc_writing_exec_fifo and not runc_var_lib_docker
+6.     and not user_known_container_drift_activities and evt.rawres>=0
+7.   output:
+8.     [%evt.time],[%user.uid],[%proc.name]
+9.   priority: ERROR
+10.   tags: [security]
+
+
+
+**Step 3:  Check Falco service, PID and logs**
+
+
+
+1. # Check Falco service and PID
+2. systemctl cat falco.service
+3. cat /var/run/falco.pid
+
+4. # Reload Falco to pick up the new rules
+5. kill -1 $(cat /var/run/falco.pid)
+
+6. # Or restart the service
+7. systemctl restart falco.service
+8. systemctl status falco.service
+
+9. # Check Falco logs
+10. journalctl -f -u falco.service  | grep -oP '<incident format to match>'
+
+
+
+**Step 4: If installed as a binary, run** `**falco**` **manually against the local rules**
+
+
+
+1. # Run falco manually against the local rules
+2. falco -U -r /etc/falco/falco_rules.local.yaml
+
+3. # Capture incidents and filter them for the report
+4. falco -M 500 -r /etc/falco/falco_rules.local.yaml | grep -oP '<incident format to match>'
+
+5. # Save the filtered output to the report file
+6. vim /home/anomalous/report
+
+
+
+`**Optional**`**: Check or configure output file location**
+
+
+
+1. grep -i log /etc/falco/falco.yaml
+2. grep -i file_output -A 3 /etc/falco/falco.yaml
+
+3. vim /etc/falco/falco.yaml
+4. # Example configuration for file output
+5. file_output:
+6.   enabled: true
+7.   keep_alive: false
+8.   filename: /opt/node-01/alerts/details
+
+9. # Exit the worker node session
+10. exit
+
+
+
+⚠️ Note:
+
+- Ensure **Falco** is installed and running on the worker node.
+
+- Adjust the `**falco rule**` conditions based on your specific requirements.
+
+- The rule captures newly executed processes inside containers only.
+
+- `**evt.rawres>=0**` ensures only successful executions are captured
+
+- Output format `**[timestamp],[uid],[processName]**` must be preserved for the incident report
+
+- The `**-M 500**` flag in `**falco -M 500**` sets the maximum number of events to process per second.
+
+- This is useful for performance tuning, if your system generates a huge number of system calls, limiting the rate prevents **Falco** from being overwhelmed.
+
+- The `**-U**` flag in `**falco -U**` ensures **Falco** runs in unbuffered mode.
+
+- The `**-r**` flag in `**falco -r**` tells **Falco** which `**rules file**` to use. Here, `/etc/falco/falco_rules.local.yaml` is a `**custom rules file**`.
+
+- **Falco** evaluates system activity against these rules and triggers alerts when something matches.
+
+- Falco logs must remain on the worker node; do not transfer raw logs to master.
+
+- **Sysdig** can also be used to observe process activity but **Falco** provides more automated detection.
+
+
+
+
+N/A
+
+**Resources**
+
+Domain
+
+Monitoring, Logging and Runtime Security (20%) ✅
+
+Question 8Correct
+
+Enable audit logging in the cluster. Configure log backend with the following requirements:
+
+- Logs are stored at `/var/log/kubernetes-logs.log`.
+
+- Logs are retained for 5 days.
+
+- Up to 10 old log files are retained.
+
+- A base policy exists at `/etc/audit/audit-policy.yaml` (only specifies what not to log). Extend it to:
+
+    1. Log Node changes at `**RequestResponse**` level.
+
+    2. Log PersistentVolumeClaim (PVC) changes in the `frontend` namespace including the `**request body**`.
+
+
+Your answer is correct
+
+solution
+
+#### Explanation
+
+Audit logging is configured via the `kube-apiserver`. The policy file defines which requests to log and at which level. Logs can be rotated and retained using backend flags.
+
+
+
+**Commands / Steps**
+
+
+
+**Step 1:  Edit the audit policy file**
+
+
+
+1. vim /etc/audit/audit-policy.yaml
+
+
+
+2. # /etc/audit/audit-policy.yaml
+3. apiVersion: audit.k8s.io/v1
+4. kind: Policy
+5. rules:
+6.   # 1. Log Node changes at RequestResponse level
+7.   - level: RequestResponse
+8.     resources:
+9.     - group: ""       # core API group
+10.       resources: ["nodes"]
+
+11.   # 2. Log PVC changes in 'frontend' namespace with request body
+12.   - level: Request
+13.     namespaces: ["frontend"]
+14.     resources:
+15.     - group: ""       # core API group
+16.       resources: ["persistentvolumeclaims"]
+
+17.   # Default rule from base policy — do not log other requests
+18.   - level: None
+
+
+
+**Step 2:** **Edit** `**kube-apiserver**` **static pod manifest**
+
+
+
+1. vim /etc/kubernetes/manifests/kube-apiserver.yaml
+
+
+
+2. # /etc/kubernetes/manifests/kube-apiserver.yaml (relevant section)
+3. spec:
+4.   containers:
+5.   - name: kube-apiserver
+6.     image: k8s.gcr.io/kube-apiserver:v1.30.0
+7.     command:
+8.     - kube-apiserver
+9.     - --audit-policy-file=/etc/audit/audit-policy.yaml
+10.     - --audit-log-path=/var/log/kubernetes-logs.log
+11.     - --audit-log-maxage=5
+12.     - --audit-log-maxbackup=10
+13.     - --audit-log-maxsize=100   # Max size in MB before rotation
+
+14.     volumeMounts:
+15.     - mountPath: /etc/audit/audit-policy.yaml
+16.       name: audit
+17.       readOnly: true
+18.     - mountPath: /var/log/
+19.       name: audit-log
+20.       readOnly: false
+
+21.   volumes:
+22.   - name: audit
+23.     hostPath:
+24.       path: /etc/audit/audit-policy.yaml
+25.       type: File
+26.   - name: audit-log
+27.     hostPath:
+28.       path: /var/log/
+29.       type: DirectoryOrCreate
+
+
+
+**Verification Step:**
+
+- Verify kube-apiserver has audit flags enabled
+
+
+1. ps aux | grep kube-apiserver | grep audit
+
+- Trigger a Node change:
+
+
+1.  kubectl delete node <node-name>
+
+- Trigger a PVC change in frontend namespace:
+
+
+1. vim pvc.yaml
+
+
+
+2. # pvc.yaml
+3. apiVersion: v1
+4. kind: PersistentVolumeClaim
+5. metadata:
+6.   name: test-pvc
+7. spec:
+8.   accessModes:
+9.     - ReadWriteOnce
+10.   resources:
+11.     requests:
+12.       storage: 1Gi
+
+
+
+13. kubectl apply -f pvc.yaml --namespace frontend
+
+
+
+- Check the logs:
+
+
+1. sudo tail -f /var/log/kubernetes-logs.log | grep "nodes"
+2. sudo tail -f /var/log/kubernetes-logs.log | grep "persistentvolumeclaims"
+
+
+
+⚠️ Note:
+
+- The `RequestResponse` level captures both metadata and request/response body.
+
+- The PVC rule is scoped to the `frontend` namespace only.
+
+- Audit log rotation ensures files don’t grow indefinitely and are managed automatically
+
+
+
+
+N/A
+
+**Resources**
+
+Domain
+
+Monitoring, Logging and Runtime Security (20%) ✅
+
+Question 9Correct
+
+A development team needs to securely provide configuration data and credentials to their applications inside Kubernetes. 
+
+You are required to work with Kubernetes Secrets and ensure the data is mounted into a Pod for application usage.
+
+- Retrieve the CA certificate data from the existing secret `**default-token-xxxxx**` in the `**dev**` namespace and save it to a file named `**ca.crt**`. 
+
+- Create a new secret `**app-config-secret**` in the `**app**` namespace with the following key-value pairs: 
+
+
+         - `**APP_USER=appadmin**`
+
+         - `**APP_PASS=Sup3rS3cret**` 
+
+
+
+- Deploy a Pod named `**app-pod**` using the `**nginx**` image that mounts the secret as a volume at `/etc/app-config`.
+
+
+Your answer is correct
+
+solution
+
+#### Explanation
+
+**Commands/Steps**
+
+
+
+**Step 1: Retrieve existing CA certificate**
+
+
+
+1. kubectl get secret default-token-xxxxx -n dev -o jsonpath='{.data.token}' | base64 -d > ca.crt
+
+
+
+**Step 2: Create new secret**
+
+
+
+1. kubectl create secret generic app-config-secret \
+2.   --from-literal=APP_USER=appadmin \
+3.   --from-literal=APP_PASS=Sup3rS3cret \
+4.   -n app
+
+
+
+**Step 3: Deploy Pod**
+
+
+
+1. # app-pod.yaml
+2. apiVersion: v1
+3. kind: Pod
+4. metadata:
+5.   name: app-pod
+6.   namespace: app
+7. spec:
+8.   containers:
+9.   - name: nginx
+10.     image: nginx
+11.     volumeMounts:
+12.     - name: app-config
+13.       mountPath: /etc/app-config
+14.       readOnly: true
+15.   volumes:
+16.   - name: app-config
+17.     secret:
+18.       secretName: app-config-secret
+
+
+
+19. kubectl apply -f app-pod.yaml
+
+
+
+**Verification Step:**
+
+
+
+1. kubectl get pod app-pod -n app
+2. kubectl describe pod app-pod -n app
+3. kubectl exec -n app app-pod -- ls /etc/app-config
+4. kubectl exec -n app app-pod -- cat /etc/app-config/APP_USER
+5. kubectl exec -n app app-pod -- cat /etc/app-config/APP_PASS
+
+
+
+⚠️ Note:
+
+Secrets are base64-encoded by default in Kubernetes. Treat the `**ca.crt**` file and credential data as sensitive information.
+
+
+
+N/A
+
+**Resources**
+
+Domain
+
+Minimize Microservice Vulnerabilities (20%) ✅
+
+Question 10Correct
+
+Review and correct security and best-practice issues in an existing Dockerfile and Kubernetes Deployment manifest at `/home/candidate/10`
+
+Do not add or remove any settings; only modify existing ones so that two settings in each file no longer pose security or best-practice concerns.
+
+If an unprivileged user is needed for any task, use the user `**nobody**` with UID `**65535**`.
+
+
+
+`**Dokerfile**`
+
+
+
+1. FROM ubuntu:latest
+2. USER root
+3. RUN apt-get update && \
+4.     apt-get install -y --no-install-recommends \
+5.     runit=2.1.2-3ubuntu1 wget=1.17.1-1ubuntu1.5 \
+6.     chrpath=0.16-1 tdata=2020a-0ubuntu0.16.04 lsof=4.89.dfsg.0-1 \
+7.     lsb-release=9.20160110ubuntu3 sysstat=11.2.0-1ubuntu0.3 \
+8.     net-tools=1.60-26ubuntu1 numactl=2.0.11-1ubuntu1.1 bzip2=1.0.6-8.1ubuntu0.2 && \
+9.     apt-get autoremove -y && apt-get clean && \
+10.     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+11. ARG COUCH_VERSION=6.5.1
+12. ARG COUCH_BASE_URL=https://packages.couchbase.com/releases/6.5.1
+13. ARG COUCH_FILE=couchbase-server-enterprise_6.5.1-ubuntu16.04_amd64.deb
+14. ARG COUCH_SHA256=91a301f3c5e574f9c5db5ac0f13fac5dc34639f176c41f26047ee6
+
+15. ENV PATH=$PATH:/opt/couchbase/bin:/opt/couchbase/bin/tools:/opt/couchbase/bin/install
+
+16. RUN groupadd -g 1001 cbgroup && useradd -u 1001 -g cbgroup -M cbuser
+
+17. SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+18. RUN export INSTALL_SKIP_START=1 && \
+19.     wget -q -O ${COUCH_FILE} ${COUCH_BASE_URL}/${COUCH_FILE} && \
+20.     echo "${COUCH_SHA256}  ${COUCH_FILE}" | sha256sum -c - && \
+21.     dpkg -i ${COUCH_FILE} && \
+22.     rm -f ${COUCH_FILE}
+
+23. COPY scripts/etc/service/couchbase-server/run /etc/service/couchbase-server/run
+24. COPY scripts/dummy.sh /usr/local/bin/
+25. COPY scripts/entrypoint.sh /
+26. COPY scripts/bin/iptables-save /usr/local/bin/iptables-save
+27. COPY scripts/bin/ip6tables-save /usr/local/bin/ip6tables-save
+28. COPY scripts/bin/vidisplay /usr/local/bin/vidisplay
+29. COPY scripts/bin/pvidisplay /usr/local/bin/pvidisplay
+
+30. RUN chrpath -r "\$ORIGIN/../lib" /opt/couchbase/bin/curl
+
+31. ENTRYPOINT ["/entrypoint.sh"]
+32. USER root
+
+33. CMD ["couchbase-server"]
+
+34. EXPOSE 8091-8096 11210 11211 18091-18096
+35. VOLUME /opt/couchbase/var
+
+
+
+`Deployment manifest`
+
+
+
+1. ---
+2. apiVersion: apps/v1
+3. kind: Deployment
+4. metadata:
+5.   name: mysql-db
+6.   labels:
+7.     app: mysql-db
+8. spec:
+9.   replicas: 1
+10.   selector:
+11.     matchLabels:
+12.       app: mysql-db
+13.   template:
+14.     metadata:
+15.       labels:
+16.         app: mysql-db
+17.     spec:
+18.       containers:
+19.       - name: mysql-container
+20.         image: mysql:5.1
+21.         resources:
+22.           requests:
+23.             cpu: "1"
+24.             memory: 512Mi
+25.           limits:
+26.             cpu: "2"
+27.             memory: 1Gi
+28.         securityContext:
+29.           runAsUser: 0
+30.           privileged: false
+31.           readOnlyRootFilesystem: true
+32.           capabilities:
+33.             add: ["NET_BIND_SERVICE"]
+34.             drop: ["ALL"]
+35.         env:
+36.         - name: MYSQL_PASSWORD
+37.           value: "mydbpassword"
+38.       volumes:
+39.         - name: db-storage
+40.           emptyDir: {}
+
+
+
+Your answer is correct
+
+solution
+
+#### Explanation
+
+**Commands / Steps:**
+
+
+
+1. # Edit Dockerfile to fix security issues
+2. vim /home/candidate/10/Dockerfile
+
+
+
+3. FROM ubuntu:16.04     # ✅ Fixed: pin to a specific Ubuntu version
+
+4. USER root             # Default user for package installation
+
+5. RUN apt-get update && \
+6.     apt-get install -y --no-install-recommends \
+7.     runit=2.1.2-3ubuntu1 wget=1.17.1-1ubuntu1.5 \
+8.     chrpath=0.16-1 tdata=2020a-0ubuntu0.16.04 lsof=4.89.dfsg.0-1 \
+9.     lsb-release=9.20160110ubuntu3 sysstat=11.2.0-1ubuntu0.3 \
+10.     net-tools=1.60-26ubuntu1 numactl=2.0.11-1ubuntu1.1 bzip2=1.0.6-8.1ubuntu0.2 && \
+11.     apt-get autoremove -y && apt-get clean && \
+12.     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+13. ARG COUCH_VERSION=6.5.1
+14. ARG COUCH_BASE_URL=https://packages.couchbase.com/releases/6.5.1
+15. ARG COUCH_FILE=couchbase-server-enterprise_6.5.1-ubuntu16.04_amd64.deb
+16. ARG COUCH_SHA256=91a301f3c5e574f9c5db5ac0f13fac5dc34639f176c41f26047ee6
+
+17. ENV PATH=$PATH:/opt/couchbase/bin:/opt/couchbase/bin/tools:/opt/couchbase/bin/install
+
+18. RUN groupadd -g 1001 cbgroup && useradd -u 1001 -g cbgroup -M cbuser
+
+19. SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+20. RUN export INSTALL_SKIP_START=1 && \
+21.     wget -q -O ${COUCH_FILE} ${COUCH_BASE_URL}/${COUCH_FILE} && \
+22.     echo "${COUCH_SHA256}  ${COUCH_FILE}" | sha256sum -c - && \
+23.     dpkg -i ${COUCH_FILE} && \
+24.     rm -f ${COUCH_FILE}
+
+25. COPY scripts/etc/service/couchbase-server/run /etc/service/couchbase-server/run
+26. COPY scripts/dummy.sh /usr/local/bin/
+27. COPY scripts/entrypoint.sh /
+28. COPY scripts/bin/iptables-save /usr/local/bin/iptables-save
+29. COPY scripts/bin/ip6tables-save /usr/local/bin/ip6tables-save
+30. COPY scripts/bin/vidisplay /usr/local/bin/vidisplay
+31. COPY scripts/bin/pvidisplay /usr/local/bin/pvidisplay
+
+32. RUN chrpath -r "\$ORIGIN/../lib" /opt/couchbase/bin/curl
+
+33. ENTRYPOINT ["/entrypoint.sh"]
+
+34. USER nobody     # ✅ Fixed: run container as unprivileged user (UID 65535)
+
+35. CMD ["couchbase-server"]
+
+36. EXPOSE 8091-8096 11210 11211 18091-18096
+37. VOLUME /opt/couchbase/var
+
+
+
+38. # Edit Deployment manifest to fix security issues
+39. vim /home/candidate/10/deployment.yaml
+
+
+
+40. ---
+41. apiVersion: apps/v1
+42. kind: Deployment
+43. metadata:
+44.   name: mysql-db
+45.   labels:
+46.     app: mysql-db
+47. spec:
+48.   replicas: 1
+49.   selector:
+50.     matchLabels:
+51.       app: mysql-db
+52.   template:
+53.     metadata:
+54.       labels:
+55.         app: mysql-db
+56.     spec:
+57.       containers:
+58.       - name: mysql-container
+59.         image: mysql:5.1
+60.         resources:
+61.           requests:
+62.             cpu: "1"
+63.             memory: 512Mi
+64.           limits:
+65.             cpu: "2"
+66.             memory: 1Gi
+67.         securityContext:
+68.           runAsUser: 65535         # ✅ Fixed: unprivileged user
+69.           privileged: false
+70.           readOnlyRootFilesystem: true
+71.           capabilities:
+72.             add: ["NET_BIND_SERVICE"]
+73.             drop: ["ALL"]
+74.         env:
+75.         - name: MYSQL_PASSWORD
+76.           valueFrom:
+77.             secretKeyRef:          # ✅ Fixed: use Secret instead of plaintext
+78.               name: mysql-db-secret
+79.               key: password
+80.       volumes:
+81.         - name: db-storage
+82.           emptyDir: {}
+
+
+
+⚠️ Note:
+
+- `nobody` user UID `65535` is used for unprivileged execution.
+
+- Pinning the base image to `ubuntu:16.04` ensures reproducibility and reduces risk of pulling an unintended latest version.
+
+- Using `readOnlyRootFilesystem: true` in the Deployment enhances container security.
+
+- Environment variables containing sensitive data should always reference Kubernetes Secrets.
+
+
+
+
+N/A
+
+**Resources**
+
+Domain
+
+System Hardening (10%) ✅
+
+Question 11Correct
+
+Organization’s security policy requires:
+
+- ServiceAccounts must **not** automount API credentials.
+
+- ServiceAccount names must end with `-sa`.
+
+
+The Pod defined in `/home/candidate/11/pod-manifest.yaml` fails to schedule due to an incorrect ServiceAccount.
+
+Tasks:
+
+1. Create a new ServiceAccount named `frontend-sa` in namespace `qa`, ensuring it does not automount credentials.
+
+2. Update and apply the Pod manifest to use this ServiceAccount.
+
+3. Clean up unused ServiceAccounts in `qa` namespace.
+
+
+Your answer is correct
+
+solution
+
+#### Explanation
+
+**Commands/Steps**
+
+
+
+**Step 1: Create ServiceAccount**
+
+
+
+1. kubectl create sa frontend-sa -n qa
+2. kubectl patch sa frontend-sa -n qa -p '{"automountServiceAccountToken": false}'
+
+
+
+**Step 2: Update and apply the Pod manifest**
+
+Edit `/home/candidate/11/pod-manifest.yaml`:
+
+
+
+1. apiVersion: v1
+2. kind: Pod
+3. metadata:
+4.   name: frontend
+5.   namespace: qa
+6.   labels:
+7.     run: frontend
+8. spec:
+9.   serviceAccountName: frontend-sa
+10.   automountServiceAccountToken: false
+11.   containers:
+12.   - name: frontend
+13.     image: nginx
+
+
+
+14. kubectl apply -f /home/candidate/11/pod-manifest.yaml
+
+
+
+**Step 3: Clean up unused ServiceAccounts**
+
+
+
+1. kubectl get sa -n qa
+2. kubectl delete sa <unused-sa> -n qa
+
+
+
+⚠️ Note:
+
+- Security policy is satisfied because `frontend-sa` ends with `-sa` and has `automountServiceAccountToken: false`.
+
+- Pod now uses the correct ServiceAccount and schedules successfully.
+
+- Cleanup ensures no non-compliant ServiceAccounts remain in namespace `qa`.
+
+
+
+
+N/A
+
+**Resources**
+
+Domain
+
+Cluster Hardening (15%) ✅
+
+Question 12Correct
+
+Implement a PodSecurityPolicy that restricts Pod volumes and bind it to a ServiceAccount:
+
+- Create a PodSecurityPolicy named `prevent-volume-policy` that **only allows** `**persistentVolumeClaim**` **volumes**.
+
+- Create a ServiceAccount `psp-sa` in the `restricted` namespace.
+
+- Create a ClusterRole `psp-role` that grants access to the PodSecurityPolicy.
+
+- Create a ClusterRoleBinding `psp-role-binding` binding the ClusterRole to the ServiceAccount.
+
+- Verify the configuration by attempting to create a Pod with a Secret volume; it should fail.
+
+
+Your answer is correct
+
+solution
+
+#### Explanation
+
+PodSecurityPolicies control security settings for Pods, including allowed volume types.
+
+This policy ensures that only PVC volumes can be used.
+
+The ServiceAccount with proper RBAC binding is needed to enforce the policy.
+
+
+
+**Commands / Steps:**
+
+
+
+1. # Create the PSP, ServiceAccount, ClusterRole, and ClusterRoleBinding
+2. vim psp.yaml
+
+
+
+3. # psp.yaml
+4. apiVersion: policy/v1beta1
+5. kind: PodSecurityPolicy
+6. metadata:
+7.   name: prevent-volume-policy
+8. spec:
+9.   privileged: false
+10.   allowPrivilegeEscalation: false
+11.   volumes:
+12.     - persistentVolumeClaim   # Only PVC allowed
+13.   runAsUser:
+14.     rule: RunAsAny
+15.   seLinux:
+16.     rule: RunAsAny
+17.   fsGroup:
+18.     rule: RunAsAny
+19.   supplementalGroups:
+20.     rule: RunAsAny
+21.   readOnlyRootFilesystem: false
+
+22. ---
+23. apiVersion: v1
+24. kind: ServiceAccount
+25. metadata:
+26.   name: psp-sa
+27.   namespace: restricted
+
+28. ---
+29. apiVersion: rbac.authorization.k8s.io/v1
+30. kind: ClusterRole
+31. metadata:
+32.   name: psp-role
+33. rules:
+34. - apiGroups:
+35.     - policy
+36.   resources:
+37.     - podsecuritypolicies
+38.   resourceNames:
+39.     - prevent-volume-policy
+40.   verbs:
+41.     - use
+
+42. ---
+43. apiVersion: rbac.authorization.k8s.io/v1
+44. kind: ClusterRoleBinding
+45. metadata:
+46.   name: psp-role-binding
+47. roleRef:
+48.   apiGroup: rbac.authorization.k8s.io
+49.   kind: ClusterRole
+50.   name: psp-role
+51. subjects:
+52. - kind: ServiceAccount
+53.   name: psp-sa
+54.   namespace: restricted
+
+
+
+55. # Apply the PSP, ServiceAccount, ClusterRole, and ClusterRoleBinding
+56. kubectl create -f psp.yaml
+
+
+
+57. # Example Pod that should fail due to Secret volume
+58. apiVersion: v1
+59. kind: Pod
+60. metadata:
+61.   name: secret-volume-test
+62.   namespace: restricted
+63. spec:
+64.   serviceAccountName: psp-sa
+65.   containers:
+66.   - name: test
+67.     image: busybox
+68.     command: ["sleep", "3600"]
+69.     volumeMounts:
+70.     - mountPath: "/etc/secret"
+71.       name: mysecret
+72.   volumes:
+73.   - name: mysecret
+74.     secret:
+75.       secretName: mysecret
+
+
+
+**Verification Step:**
+
+- Check that the Pod is running on node-01:
+
+
+1. kubectl create -f secret-volume-test.yaml
+
+- It should fail because the PSP only allows `persistentVolumeClaim` volumes.
+
+- Confirm the PSP is applied to the ServiceAccount:
+
+
+1. kubectl get psp prevent-volume-policy -o yaml
+2. kubectl get sa psp-sa -n restricted -o yaml
+3. kubectl get clusterrolebinding psp-role-binding -o yaml
+
+
+
+⚠️ Note:
+
+- PodSecurityPolicy is deprecated in Kubernetes ≥1.25; for newer clusters, consider Pod Security Admission or tools like Kyverno/OPA.
+
+- Testing with a Pod using a forbidden volume type validates the PSP enforcement.
+
+- Ensure the ServiceAccount is used in the Pod spec to enforce the PSP rules.
+
+
+
+
+N/A
+
+**Resources**
+
+Domain
+
+Minimize Microservice Vulnerabilities (20%) ✅
+
+Question 13Correct
+
+Generate Software Bill Of Materials (SBOM) documents for specific Kubernetes images and scan an existing SBOM for known vulnerabilities using `bom` and `trivy`.
+
+**Images / Files to generate:**
+
+1. Generate **SPDX-JSON SBOM** for `registry.k8s.io/kube-apiserver:v1.32.0` and save to `/opt/candidate/13/sbom1.json`
+
+2. Generate **CycloneDX SBOM** for `registry.k8s.io/kube-controller-manager:v1.32.0` and save to `/opt/candidate/13/sbom2.json`
+
+3. Scan the existing **SPDX-JSON SBOM** located at `/opt/candidate/13/sbom_check.json` for known vulnerabilities and save the scan result in JSON format to `/opt/candidate/13/sbom_result.json`
+
+
+Your answer is correct
+
+solution
+
+#### Explanation
+
+A **Software Bill Of Materials (SBOM)** is a detailed inventory of all components (libraries, packages, dependencies) that exist inside a container image.
+
+- SPDX-JSON and CycloneDX are widely used industry-standard formats for SBOMs.
+
+- SBOMs allow security teams to **analyze dependencies without pulling or rescanning the original image**.
+
+- By generating SBOMs and scanning them with `trivy`, we can identify **High and Critical vulnerabilities** early and ensure compliance/security standards are met.
+
+
+**Commands / Steps**
+
+
+
+1. # Generate SPDX-JSON SBOM for kube-apiserver
+2. bom generate --image registry.k8s.io/kube-apiserver:v1.32.0 --format json --output /opt/candidate/13/sbom1.json
+3. cat /opt/candidate/13/sbom1.json
+
+4. # Generate CycloneDX SBOM for kube-controller-manager
+5. trivy image --format cyclonedx --output /opt/candidate/13/sbom2.json registry.k8s.io/kube-controller-manager:v1.32.0
+6. cat /opt/candidate/13/sbom2.json
+
+7. # Scan existing SPDX-JSON SBOM for vulnerabilities using Trivy
+8. trivy sbom --format json --output /opt/candidate/13/sbom_result.json /opt/candidate/13/sbom_check.json
+9. cat /opt/candidate/13/sbom_result.json
+
+
+
+**Verification Step:**
+
+1. # Verify generated SBOM files exist and contain expected JSON
+2. ls -l /opt/candidate/13/sbom*.json
+3. jq . /opt/candidate/13/sbom1.json
+4. jq . /opt/candidate/13/sbom2.json
+5. jq . /opt/candidate/13/sbom_result.json
+
+
+
+⚠️ Note:
+
+- `bom` is used for `SPDX-JSON` generation; Trivy supports multiple SBOM formats including `CycloneDX`.
+
+- Trivy does not require the image itself when scanning from an existing SBOM.
+
+- Ensure `bom` and `trivy` are installed on the cluster’s master node (as stated in the task).
+
+
+
+
+N/A
+
+**Resources**
+
+Domain
+
+Supply Chain Security (20%) ✅
+
+Question 14Correct
+
+Adjust overly broad Role permissions assigned to a Pod's ServiceAccount.
+
+You have an existing Pod named `web-pod` in the `database` namespace.
+
+1. **Modify existing Role**
+
+    - Edit the Role bound to the Pod’s ServiceAccount `test-sa`
+
+    - Restrict it to **only allow** `**get**` **actions** on resources of type `Pods`.
+
+2. **Create a new Role**
+
+    - Name: `test-role-2`
+
+    - Namespace: `database`
+
+    - Permissions: **only** `**update**` **actions** on resources of type `StatefulSets`.
+
+3. **Create a RoleBinding**
+
+    - Name: `test-role-2-bind`
+
+    - Bind the newly created Role to the same ServiceAccount `test-sa`.
+
+
+**Summary:**
+Limit the existing Role to `get` on Pods, create a new Role with `update` on **StatefulSets**, and bind it to the same ServiceAccount.
+
+Your answer is correct
+
+solution
+
+#### Explanation
+
+Overly permissive roles can lead to security risks.
+Restricting actions to the minimal required permissions `**least privilege**` ensures safer operation.
+Existing Role is restricted to `**get**` on Pods, and a separate Role handles updates to **StatefulSets**.
+
+
+
+**Commands / Steps**
+
+
+
+1. # Inspect existing RoleBindings for the ServiceAccount
+2. kubectl get rolebindings -n database --output wide | grep test-sa
+
+3. # Edit existing Role to limit it to 'get' on Pods
+4. kubectl edit role test-role -n database
+
+
+
+5. rules:
+6. - apiGroups: [""]
+7.   resources: ["pods"]
+8.   verbs: ["get"]
+
+
+
+9. # Create a new Role allowing 'update' only on StatefulSets
+10. kubectl create role -n test-role-2 --verb=update --resource=statefulsets -n database
+
+11. # OR
+
+12. cat <<EOF | kubectl apply -f -
+13. apiVersion: rbac.authorization.k8s.io/v1
+14. kind: Role
+15. metadata:
+16.   name: test-role-2
+17.   namespace: database
+18. rules:
+19. - apiGroups: ["apps"]
+20.   resources: ["statefulsets"]
+21.   verbs: ["update"]
+22. EOF
+
+
+
+23. # Create a RoleBinding to bind the new Role to the ServiceAccount
+24. kubectl create rolebinding test-role-2-bind --role=test-role-2 --serviceaccount=database:test-sa -n database
+
+25. # OR
+
+26. cat <<EOF | kubectl apply -f -
+27. apiVersion: rbac.authorization.k8s.io/v1
+28. kind: RoleBinding
+29. metadata:
+30.   name: test-role-2-bind
+31.   namespace: database
+32. subjects:
+33. - kind: ServiceAccount
+34.   name: test-sa
+35.   namespace: database
+36. roleRef:
+37.   kind: Role
+38.   name: test-role-2
+39.   apiGroup: rbac.authorization.k8s.io
+40. EOF
+
+
+
+**Verification Step:**
+
+1. # Verify existing Role is limited to get Pods
+2. kubectl get role test-role -n database -o yaml
+
+3. # Verify new Role and RoleBinding exist
+4. kubectl get role test-role-2 -n database -o yaml
+5. kubectl get rolebinding test-role-2-bind -n database -o yaml
+
+
+
+⚠️ Note:
+
+- Existing Role is restricted to `**get**` on Pods; no deletions are required.
+
+- New Role handles updates to **StatefulSets**.
+
+- Always follow principle of least privilege when modifying roles.
+
+
+
+
+N/A
+
+**Resources**
+
+Domain
+
+Cluster Hardening (15%) ✅
+
+Question 15Correct
+
+Validate the integrity of four Kubernetes server binaries located at `/opt/candidate/15/binaries` on `cks-node`.
+Compare their **sha512 checksums** against the provided verified values and delete any binaries that **do not match**.
+
+**Binaries and Expected Hashes:**
+
+- **kube-apiserver** → `a3b9e5c4f7d21e89bc317f0e91a7c845df1100d2fb8cc63dff9e40a9e5a2a3c6bb8aa4e4579de9b136d65b18b7d6eae4c3f26de982e537a0a4a1ef8bb1c27c5f`
+
+- **kube-controller-manager** → `b7a223f9918b94e5d6479fcf41da0cd2d93ce0fd102e5c770d1c9b6c82e1a2ad84cbbd54cdd7a4a98fd6133b0b5e6a981a45b0a9cbf24a93980f89ac56c9f47f`
+
+- **kube-proxy** → `4d9917ea90a3f8ccbe3a607f5c9aeeecb7113a9c02a8e55c5bda6f73dd6b5a7c1b928d0169ea3a8b2c5ddbc0285d54a9d76c9c36f7b8ab7b17d5d8f39d1444a2`
+
+- **kubelet** → `8f1c29d7c8b2f491d512accb04a6d028dcdb3fc6a5b7b890f432e77e3217a90d92c2b4a3d98c8d49e19d3f80ad29348db216d31cbf96f82d19976f3251d9b887`
+
+
+Your answer is correct
+
+solution
+
+#### Explanation
+
+- The `sha512sum --check` command validates a file against a known checksum.
+
+- Any mismatch indicates the file is tampered or corrupted.
+
+- Only files matching their expected checksum should remain; others must be deleted.
+
+
+**Commands / Steps**
+
+
+
+1. # Move into directory with binaries
+2. cd /opt/candidate/47/binaries
+
+3. # Verify kube-apiserver
+4. echo "a3b9e5c4f7d21e89bc317f0e91a7c845df1100d2fb8cc63dff9e40a9e5a2a3c6bb8aa4e4579de9b136d65b18b7d6eae4c3f26de982e537a0a4a1ef8bb1c27c5f  kube-apiserver" | sha512sum --check
+
+5. # Verify kube-controller-manager
+6. echo "b7a223f9918b94e5d6479fcf41da0cd2d93ce0fd102e5c770d1c9b6c82e1a2ad84cbbd54cdd7a4a98fd6133b0b5e6a981a45b0a9cbf24a93980f89ac56c9f47f  kube-controller-manager" | sha512sum --check
+
+7. # Verify kube-proxy
+8. echo "4d9917ea90a3f8ccbe3a607f5c9aeeecb7113a9c02a8e55c5bda6f73dd6b5a7c1b928d0169ea3a8b2c5ddbc0285d54a9d76c9c36f7b8ab7b17d5d8f39d1444a2  kube-proxy" | sha512sum --check
+
+9. # Verify kubelet
+10. echo "8f1c29d7c8b2f491d512accb04a6d028dcdb3fc6a5b7b890f432e77e3217a90d92c2b4a3d98c8d49e19d3f80ad29348db216d31cbf96f82d19976f3251d9b887  kubelet" | sha512sum --check
+
+11. # Remove binaries that FAILED integrity check
+12. rm -f kube-controller-manager kubelet
+
+
+
+**Verification Step:**
+
+1. # Confirm that only valid binaries remain
+2. ls -l /opt/candidate/47/binaries
+
+3. # Double-check valid ones
+4. sha512sum kube-apiserver kube-proxy
+
+
+
+⚠️ Note:
+
+- The `kube-apiserver` and `kube-proxy` passed verification.
+
+- The `kube-controller-manager` and `kubelet` failed and were removed.
+
+
+
+
+N/A
+
+**Resources**
+
+Domain
+
+Cluster Hardening (15%) ✅
+
+Question 16Correct
+
+In the namespace `**team-blue**`, developers deployed a Pod running in **privileged mode**, which violates the `**restricted**` **Pod Security Standard**.
+
+You must configure the namespace to enforce the `**restricted**` profile so that insecure Pods cannot be recreated.
+
+Then delete the running Pod from the Deployment and capture the ReplicaSet events showing why the Pod fails to restart.
+
+- Configure the namespace `**team-blue**` to enforce the `**restricted**` **Pod Security Standard** (via labels). 
+
+- Delete the Pod from Deployment **privileged-runner** in `**team-blue**`. 
+
+- Observe ReplicaSet events to confirm that the Pod fails to be recreated due to Pod Security violations. 
+
+- Write the event/log lines showing the failure reason into `/opt/candidate/16/logs` on `cks-node`. 
+
+Your answer is correct
+
+solution
+
+#### Explanation
+
+- The `**restricted**` profile blocks privileged containers, host networking, and other unsafe configurations. 
+
+- By labeling the namespace, the **Pod Security Admission** controller enforces this policy automatically. 
+
+- Once enforced, any attempt to recreate Pods with privileged settings will fail. 
+
+- ReplicaSet events will contain details about the violation.
+
+
+
+**Commands / Steps**
+
+
+
+1. # Label the namespace with restricted PodSecurity enforcement
+2. kubectl label ns team-blue pod-security.kubernetes.io/enforce=restricted
+
+3. # Verify labels
+4. kubectl get ns team-blue --show-labels
+
+5. # Delete the running Pod from the Deployment
+6. kubectl -n team-blue delete pod privileged-runner-7c9f5c4b8b-kz2jd --force --grace-period=0
+
+7. # Inspect ReplicaSet events to see failure reason
+8. kubectl -n team-blue describe rs privileged-runner-7c9f5c4b8b | grep -i "FailedCreate"
+
+9. # Save failure logs into required file
+10. kubectl -n team-blue describe rs privileged-runner-7c9f5c4b8b \
+11.   | grep -i "FailedCreate" > /opt/candidate/16/logs
+
+
+
+**Verification Step:**
+
+1. # Confirm Pod is not recreated
+2. kubectl -n team-blue get pods
+
+3. # Confirm logs file contains expected error message
+4. cat /opt/candidate/16/logs
+
+
+
+⚠️ Note:
+
+- The `**restricted**` profile forbids privileged containers.
+
+- The ReplicaSet will fail to recreate the Pod with error similar to:
+    `violates PodSecurity "restricted:latest": privileged containers are not allowed`.
+
+
+N/A
+
+**Resources**
+
+Domain
+
+Minimize Microservice Vulnerabilities (20%) ✅

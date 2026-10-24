@@ -1,0 +1,15 @@
+{
+  "lab": "cks-004",
+  "name": "CKS Practice Lab - Kubernetes Security - 4",
+  "description": "Cilium policies, seccomp, SBOMs, service accounts, audit logging, Pod Security and admission policies",
+  "difficulty": "Hard",
+  "warmUpTimeInSeconds": 260,
+  "examDurationInMinutes": 120,
+  "workerNodes": 1,
+  "answers": "assets/exams/cks-reddit/004/answers.md",
+  "questions": "assessment.json",
+  "totalMarks": 100,
+  "lowScore": 40,
+  "mediumScore": 60,
+  "highScore": 90
+}

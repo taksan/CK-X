@@ -1,0 +1,469 @@
+{
+  "questions": [
+    {
+      "id": "1",
+      "namespace": "team-dev",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `team-dev` the CiliumNetworkPolicy `default-allow` already exists and must stay as it is.\n\n1. Create a CiliumNetworkPolicy named `team-dev` that denies ICMP (ping) traffic from the Pods of the Deployment `stuff` to the Pod `backend-0` (the Pod behind the Service `backend`). TCP traffic to `backend-0` and the ping between any other Pods must keep working.\n2. Create a CiliumNetworkPolicy named `team-dev-2` that makes the Pods with the label `role=database` require **mutual authentication** (`authentication.mode: required`) for their egress traffic to the Pods with the label `role=api-service`.\n\nThe traffic from `database-0` to the `api-service` Pods must keep working: the handshake has to succeed.",
+      "concepts": [
+        "cilium",
+        "network policy",
+        "mutual authentication"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Pods of Deployment stuff cannot ping backend-0 (TCP and other Pods unaffected, default-allow kept)",
+          "verificationScriptFile": "q1_s1_validate_icmp_deny.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "2",
+          "description": "CiliumNetworkPolicy team-dev-2 requires mutual authentication from role=database to role=api-service",
+          "verificationScriptFile": "q1_s2_validate_authentication_policy.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "namespace": "secure-app",
+      "machineHostname": "ckad9999",
+      "question": "On the worker node `{{NODE01}}` create a seccomp profile and use it for the Deployment `webapp` in the namespace `secure-app`.\n\n- Create the directory `/var/lib/kubelet/seccomp` on `{{NODE01}}` and, inside it, a profile that allows every syscall **except `mkdir` and `mkdirat`**, which must be blocked.\n- Update the Deployment `webapp` so that its Pods use the profile as a `Localhost` seccomp profile.\n- When the rollout is finished, creating a directory inside the containers must fail while everything else (for example creating a file) keeps working.",
+      "concepts": [
+        "seccomp",
+        "pod security",
+        "node hardening"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "A seccomp profile blocking mkdir and mkdirat exists in /var/lib/kubelet/seccomp on {{NODE01}}",
+          "verificationScriptFile": "q2_s1_validate_profile_file.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "Deployment webapp runs completely with the Localhost profile and mkdir is blocked inside the Pods",
+          "verificationScriptFile": "q2_s2_validate_deployment_enforced.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "namespace": "ci-cd",
+      "machineHostname": "ckad9999",
+      "question": "Some workloads in the namespace `ci-cd` are able to see and modify the node they run on. Find out which Deployment is responsible and fix it:\n\n- No Pod of the namespace may share the host PID, IPC or network namespace of the node.\n- No workload of the namespace may mount a path of the node (`hostPath`).\n- The fixed Deployment must keep running. The Deployments that are fine must not be changed.",
+      "concepts": [
+        "host namespaces",
+        "hostPath",
+        "pod security"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "No workload of ci-cd shares the host PID/IPC/network namespaces",
+          "verificationScriptFile": "q3_s1_validate_host_namespaces.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "No workload of ci-cd mounts a hostPath",
+          "verificationScriptFile": "q3_s2_validate_host_paths.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "builder was fixed and runs; reporter and cache were left untouched",
+          "verificationScriptFile": "q3_s3_validate_workloads_running.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "namespace": "scan-lab",
+      "machineHostname": "ckad9999",
+      "question": "Scan the container images used by the workloads of the namespace `scan-lab` with Trivy.\n\nDelete the workloads whose image has vulnerabilities of severity **HIGH or CRITICAL**. Workloads without such vulnerabilities must be kept running.",
+      "concepts": [
+        "trivy",
+        "image scanning",
+        "supply chain"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The Deployment with the vulnerable image is deleted and the clean workloads are kept",
+          "verificationScriptFile": "q4_s1_validate_vulnerable_deployment_removed.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "The Pod with the vulnerable image is deleted and the clean workloads are kept",
+          "verificationScriptFile": "q4_s2_validate_vulnerable_pod_removed.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "namespace": "egress-lab",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `egress-lab` create a NetworkPolicy named `default-deny` that denies **all egress traffic** of every Pod in the namespace, except DNS: the Pods must still be able to resolve names using the cluster DNS (CoreDNS in `kube-system`, UDP and TCP port 53).\n\nAfterwards the Pod `client` must neither reach the Pod `server` nor the Kubernetes API service, but it must still be able to resolve DNS names.",
+      "concepts": [
+        "network policy",
+        "egress",
+        "dns"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "NetworkPolicy default-deny restricts the egress of all Pods",
+          "verificationScriptFile": "q5_s1_validate_policy.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "The Pod client cannot reach the server Pod nor the API service",
+          "verificationScriptFile": "q5_s2_validate_egress_blocked.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "DNS resolution still works from the Pod client",
+          "verificationScriptFile": "q5_s3_validate_dns_allowed.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "6",
+      "namespace": "qa",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `qa` every ServiceAccount (present and future) is granted, through a RoleBinding, access to ConfigMaps **and Secrets**.\n\n1. Create a new ServiceAccount `backend-qa` in `qa`.\n2. Make sure `backend-qa` cannot `get`, `list` or `watch` Secrets in the namespace. The existing ServiceAccount `ci-bot` must keep its access to ConfigMaps.\n3. Update the manifest `/tmp/exam/cks-004-q6/frontend-pod.yaml` so that the Pod `frontend` uses `backend-qa` and re-create the Pod from it.",
+      "concepts": [
+        "rbac",
+        "service accounts",
+        "least privilege"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "ServiceAccount backend-qa exists",
+          "verificationScriptFile": "q6_s1_validate_serviceaccount.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "backend-qa cannot read Secrets and ci-bot still reads ConfigMaps",
+          "verificationScriptFile": "q6_s2_validate_no_secret_access.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "Pod frontend runs with backend-qa",
+          "verificationScriptFile": "q6_s3_validate_frontend_pod.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "7",
+      "namespace": "monitoring-lab",
+      "machineHostname": "ckad9999",
+      "question": "Two Pods, `tomcat` and `batch`, run on the worker node `{{NODE01}}` in the namespace `monitoring-lab`. Falco is installed on `{{NODE01}}`.\n\nUsing Falco, monitor **only the Pod `tomcat`** for at least **40 seconds** and record the processes it spawns: the report must contain every process that the Pod `tomcat` spawns during the monitoring. Save the output on `{{NODE01}}` in `/tmp/exam/cks-004-q7/report`, one event per line in exactly this format (brackets included):\n\n`[timestamp],[uid],[processName]`\n\nwith the timestamp in ISO 8601. The processes of the Pod `batch` must not appear in the report.",
+      "concepts": [
+        "falco",
+        "runtime security",
+        "incident response"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The report on {{NODE01}} has the requested format and only events of the Pod tomcat",
+          "verificationScriptFile": "q7_s1_validate_report_content.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "2",
+          "description": "The report covers at least 40 seconds and was recorded during the exam",
+          "verificationScriptFile": "q7_s2_validate_report_timeline.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "8",
+      "namespace": "frontend",
+      "machineHostname": "ckad9999",
+      "question": "The API server is prepared to write audit logs, but the policy file `/etc/audit/audit-policy.yaml` on the control plane (`{{CONTROL_PLANE}}`) only lists what must **not** be logged. Extend it (do not replace the existing rules) and configure the API server:\n\n- Log changes to **nodes** at the `RequestResponse` level.\n- Log changes to **PersistentVolumeClaims in the namespace `frontend` only** at the `Request` level.\n- Use the policy file `/etc/audit/audit-policy.yaml`, store the logs at `/var/log/kubernetes-logs.log`, keep them for 5 days and keep at most 10 old log files.\n\nThe kube-proxy exclusions of the base policy must keep working, and the API server must stay healthy.",
+      "concepts": [
+        "audit logging",
+        "kube-apiserver",
+        "cluster hardening"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Node changes are logged at RequestResponse level",
+          "verificationScriptFile": "q8_s1_validate_node_changes.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "PVC changes in frontend are logged at Request level and nowhere else; base exclusions still apply",
+          "verificationScriptFile": "q8_s2_validate_pvc_changes.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "3",
+          "description": "kube-apiserver audit flags (policy file, log path, 5 days, 10 files)",
+          "verificationScriptFile": "q8_s3_validate_apiserver_flags.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "9",
+      "namespace": "dev",
+      "machineHostname": "ckad9999",
+      "question": "Work with Secrets in the namespaces `dev` and `app`:\n\n1. The Secret `platform-certs` in `dev` contains the key `ca.crt`. Decode its value and save the certificate to `/tmp/exam/cks-004-q9/ca.crt`.\n2. In the namespace `app` create the Secret `app-config-secret` with `APP_USER=appadmin` and `APP_PASS=Sup3rS3cret`.\n3. In `app` create the Pod `app-pod` (image `nginx`) that mounts the Secret `app-config-secret` **read-only** at `/etc/app-config`, with the file mode **0400** for the files.",
+      "concepts": [
+        "secrets",
+        "pod volumes",
+        "file permissions"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "ca.crt holds the decoded certificate of platform-certs",
+          "verificationScriptFile": "q9_s1_validate_ca_file.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "Secret app-config-secret in app has the requested keys and values",
+          "verificationScriptFile": "q9_s2_validate_secret.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "Pod app-pod mounts the secret read-only at /etc/app-config with mode 0400",
+          "verificationScriptFile": "q9_s3_validate_pod_mount.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "namespace": "files",
+      "machineHostname": "ckad9999",
+      "question": "Review the Dockerfile `/tmp/exam/cks-004-q10/Dockerfile` and the Deployment manifest `/tmp/exam/cks-004-q10/deployment.yaml`.\n\nEach file has **two** settings that are security or best-practice problems. **Do not add or remove any settings**; only modify existing ones so that the two problems of each file are fixed.\n\nIf an unprivileged user is needed, use the user `nobody` with UID `65535`.",
+      "concepts": [
+        "dockerfile best practices",
+        "securityContext",
+        "least privilege"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Dockerfile: pinned base image and unprivileged final user, nothing added or removed",
+          "verificationScriptFile": "q10_s1_validate_dockerfile.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "Deployment: not privileged and runAsUser 65535, nothing else changed",
+          "verificationScriptFile": "q10_s2_validate_deployment.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "11",
+      "namespace": "web-team",
+      "machineHostname": "ckad9999",
+      "question": "Security policy for the namespace `web-team`: ServiceAccounts must **not** automount API credentials and their names must end with `-sa`.\n\nThe Pod in `/tmp/exam/cks-004-q11/pod-manifest.yaml` cannot be created because it references a ServiceAccount that does not exist.\n\n1. Create the ServiceAccount `frontend-sa` in `web-team` without automounting credentials.\n2. Update and apply the manifest so that the Pod `frontend` uses it.\n3. Delete the ServiceAccounts of the namespace that are not used by any Pod (keep `default` and the ones in use).",
+      "concepts": [
+        "service accounts",
+        "automount",
+        "cluster hardening"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "frontend-sa does not automount credentials and the Pod frontend runs with it without a token",
+          "verificationScriptFile": "q11_s1_validate_serviceaccount_and_pod.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "Unused ServiceAccounts are deleted, the used ones are kept",
+          "verificationScriptFile": "q11_s2_validate_cleanup.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "12",
+      "namespace": "volume-lab",
+      "machineHostname": "ckad9999",
+      "question": "Use a ValidatingAdmissionPolicy to restrict the volumes of Pods.\n\n- Create a ValidatingAdmissionPolicy `prevent-volume-policy` that only allows Pods whose volumes are of type `persistentVolumeClaim` (the `projected` volume that Kubernetes injects for the ServiceAccount token must still be allowed).\n- Create a ValidatingAdmissionPolicyBinding `prevent-volume-binding` that applies it to the namespace `volume-lab` **only** and denies the requests that violate it.\n- Pods with other volume types (Secret, emptyDir, ...) must be rejected in `volume-lab`. The namespace `open-volumes` must stay unrestricted.",
+      "concepts": [
+        "admission control",
+        "validating admission policy",
+        "pod security"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Policy prevent-volume-policy and binding prevent-volume-binding exist with the Deny action",
+          "verificationScriptFile": "q12_s1_validate_policy_objects.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "volume-lab only accepts PVC volumes; open-volumes is unaffected",
+          "verificationScriptFile": "q12_s2_validate_enforcement.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    },
+    {
+      "id": "13",
+      "namespace": "files",
+      "machineHostname": "ckad9999",
+      "question": "Generate and scan SBOMs with `trivy` (installed on the jumphost). Save everything in `/tmp/exam/cks-004-q13/`:\n\n1. Generate an **SPDX-JSON** SBOM for the image `registry.k8s.io/pause:3.9` and save it as `sbom1.json`.\n2. Generate a **CycloneDX** SBOM for the image `alpine:3.20` and save it as `sbom2.json`.\n3. Scan the existing SBOM `sbom_check.json` for vulnerabilities of severity **HIGH and CRITICAL** only, and save the result in **JSON** format as `sbom_result.json`.",
+      "concepts": [
+        "sbom",
+        "trivy",
+        "supply chain"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "sbom1.json is an SPDX-JSON SBOM of registry.k8s.io/pause:3.9",
+          "verificationScriptFile": "q13_s1_validate_spdx_sbom.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "sbom2.json is a CycloneDX SBOM of alpine:3.20",
+          "verificationScriptFile": "q13_s2_validate_cyclonedx_sbom.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "sbom_result.json is the JSON scan of sbom_check.json with HIGH and CRITICAL findings only",
+          "verificationScriptFile": "q13_s3_validate_sbom_scan.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "14",
+      "namespace": "database",
+      "machineHostname": "ckad9999",
+      "question": "The Pod `web-pod` in the namespace `database` runs with the ServiceAccount `web-sa`, which has far more permissions than it needs.\n\n1. Modify the Role currently bound to `web-sa` so that it only allows the verb `get` on `pods`.\n2. Create the Role `web-sts-updater` that only allows `update` on `statefulsets`.\n3. Create the RoleBinding `web-sts-updater-bind` that binds this Role to `web-sa`.\n\nDo not change the permissions of other ServiceAccounts.",
+      "concepts": [
+        "rbac",
+        "least privilege"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The Role bound to web-sa only allows get on pods",
+          "verificationScriptFile": "q14_s1_validate_existing_role.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "Role web-sts-updater and its binding grant only update on statefulsets to web-sa; other accounts untouched",
+          "verificationScriptFile": "q14_s2_validate_new_role_and_binding.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "15",
+      "namespace": "files",
+      "machineHostname": "ckad9999",
+      "question": "Four Kubernetes binaries are in `/tmp/exam/cks-004-q15/binaries`. Compare their **sha512** checksums with the verified values and **delete the binaries that do not match**. Binaries that match must be kept.\n\nThe verified checksums are in `/tmp/exam/cks-004-q15/checksums.sha512` (the format of `sha512sum -c`: the file names are relative to the `binaries` directory).",
+      "concepts": [
+        "integrity",
+        "checksums",
+        "supply chain"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Tampered binaries removed and intact binaries kept",
+          "verificationScriptFile": "q15_s1_validate_binaries.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    },
+    {
+      "id": "16",
+      "namespace": "team-blue",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `team-blue` the Deployment `privileged-runner` runs a privileged container, which violates the `restricted` Pod Security Standard.\n\n- Configure the namespace `team-blue` to **enforce** the `restricted` Pod Security Standard (with the namespace label).\n- Delete the running Pod of the Deployment `privileged-runner`.\n- Check the events of its ReplicaSet to confirm the Pod cannot be recreated, and save the event lines that show the failure reason in `/tmp/exam/cks-004-q16/logs`.",
+      "concepts": [
+        "pod security admission",
+        "pod security standards"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Namespace team-blue enforces restricted and no privileged Pod runs",
+          "verificationScriptFile": "q16_s1_validate_namespace_enforced.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "The ReplicaSet FailedCreate events with the PodSecurity violation are saved in the file",
+          "verificationScriptFile": "q16_s2_validate_events_file.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    }
+  ]
+}
