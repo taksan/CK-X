@@ -1,0 +1,167 @@
+{
+  "questions": [
+    {
+      "id": "1",
+      "namespace": "secret-room",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `secret-room` create a ServiceAccount named `hidden-user` that does **not** automatically mount its API token.\n\nVerify it by creating a Pod in the same namespace that uses this ServiceAccount: the Pod must run without an API token mounted.",
+      "concepts": [
+        "service accounts",
+        "automount",
+        "least privilege"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "ServiceAccount hidden-user exists in namespace secret-room",
+          "verificationScriptFile": "q1_s1_validate_serviceaccount_exists.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "The ServiceAccount hidden-user has automountServiceAccountToken: false",
+          "verificationScriptFile": "q1_s2_validate_automount_disabled.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "3",
+          "description": "A Pod using hidden-user runs without an automatic token mount",
+          "verificationScriptFile": "q1_s3_validate_pod_without_token.sh",
+          "expectedOutput": "0",
+          "weightage": 8
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "namespace": "write-guard",
+      "machineHostname": "ckad9999",
+      "question": "Use an AppArmor profile that denies writing to `/tmp`.\n\nThe profile `k8s-deny-write` is prepared in `/etc/apparmor.d/deny-tmp-write` on the worker node `{{NODE01}}`. Load it on `{{NODE01}}`, then update the Pod manifest `/tmp/exam/mhagou-004-q2/pod.yaml` so that its container is confined by this profile, and deploy the Pod `hello-apparmor` in the namespace `write-guard`.\n\nThe Pod must run on `{{NODE01}}`. Try to write a file to `/tmp` inside the container: it must fail, while writing elsewhere keeps working.",
+      "concepts": [
+        "apparmor",
+        "pod security",
+        "node hardening"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "AppArmor profile k8s-deny-write is loaded on {{NODE01}}",
+          "verificationScriptFile": "q2_s1_validate_profile_loaded.sh",
+          "expectedOutput": "0",
+          "weightage": 5
+        },
+        {
+          "id": "2",
+          "description": "Pod hello-apparmor runs on {{NODE01}} confined by a custom AppArmor profile in enforce mode",
+          "verificationScriptFile": "q2_s2_validate_pod_confined.sh",
+          "expectedOutput": "0",
+          "weightage": 7
+        },
+        {
+          "id": "3",
+          "description": "Writing to /tmp is denied inside the Pod while other paths stay writable",
+          "verificationScriptFile": "q2_s3_validate_tmp_write_denied.sh",
+          "expectedOutput": "0",
+          "weightage": 10
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "namespace": "syscall-lab",
+      "machineHostname": "ckad9999",
+      "question": "Create a custom seccomp profile that **logs** (but does not block) the `mkdir` and `mkdirat` syscalls, and apply it to a Pod.\n\n- The Pod `audit-pod` in the namespace `syscall-lab` runs on the worker node `{{NODE02}}` without a profile. Its manifest is `/tmp/exam/mhagou-004-q3/pod.yaml`.\n- Create the profile in the kubelet seccomp directory of `{{NODE02}}` (`/var/lib/kubelet/seccomp`, which does not exist yet). It must allow every syscall; only `mkdir` and `mkdirat` are logged.\n- Re-create `audit-pod` from the manifest so that it uses the profile as a `Localhost` seccomp profile.\n\nThen run `mkdir` in the container: it must succeed and the kernel of `{{NODE02}}` must log it.",
+      "concepts": [
+        "seccomp",
+        "syscalls",
+        "node hardening"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "A seccomp profile on {{NODE02}} logs mkdir and mkdirat and allows everything else",
+          "verificationScriptFile": "q3_s1_validate_profile_file.sh",
+          "expectedOutput": "0",
+          "weightage": 8
+        },
+        {
+          "id": "2",
+          "description": "Pod audit-pod runs on {{NODE02}} with a Localhost seccomp profile that exists, and mkdir works in it",
+          "verificationScriptFile": "q3_s2_validate_pod_profile.sh",
+          "expectedOutput": "0",
+          "weightage": 6
+        },
+        {
+          "id": "3",
+          "description": "The kernel of {{NODE02}} logs the mkdir calls of the Pod",
+          "verificationScriptFile": "q3_s3_validate_kernel_logs_mkdir.sh",
+          "expectedOutput": "0",
+          "weightage": 8
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "namespace": "shell-watch",
+      "machineHostname": "ckad9999",
+      "question": "Falco runs as a systemd service on the worker node `{{NODE02}}` (service `falco-modern-bpf`). Its rule `Terminal shell in container` detects a shell that is opened with a terminal in a container (for example with `kubectl exec -it`).\n\nChange the Falco rules on `{{NODE02}}` so that, whenever such a shell is opened, Falco logs a message that contains exactly:\n\n`CRITICAL: SHELL OPENED`\n\nMake the running Falco service use the change (it must keep running). The Pod `shell-practice` in the namespace `shell-watch` runs on `{{NODE02}}` for you to try it.",
+      "concepts": [
+        "falco",
+        "runtime security",
+        "custom rules"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The message is configured in the Falco files of {{NODE02}} and the Falco service was restarted afterwards",
+          "verificationScriptFile": "q4_s1_validate_rule_loaded.sh",
+          "expectedOutput": "0",
+          "weightage": 6
+        },
+        {
+          "id": "2",
+          "description": "A shell with a terminal opened in the Pod makes Falco log CRITICAL: SHELL OPENED",
+          "verificationScriptFile": "q4_s2_validate_shell_alert.sh",
+          "expectedOutput": "0",
+          "weightage": 18
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "namespace": "files",
+      "machineHostname": "ckad9999",
+      "question": "Complete the Kubernetes audit policy file `/tmp/exam/mhagou-004-q5/audit-policy.yaml` so that **all requests for Secrets** (every namespace, every user, every verb) are logged at the `Metadata` level.\n\nThe policy must use `apiVersion: audit.k8s.io/v1` and `kind: Policy`. Only the policy file has to be written: you do not need to configure or restart the kube-apiserver.",
+      "concepts": [
+        "audit logging",
+        "audit policy",
+        "secrets"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "get, list and watch of Secrets are logged at Metadata",
+          "verificationScriptFile": "q5_s1_validate_secret_reads.sh",
+          "expectedOutput": "0",
+          "weightage": 7
+        },
+        {
+          "id": "2",
+          "description": "create, update, patch and delete of Secrets are logged at Metadata",
+          "verificationScriptFile": "q5_s2_validate_secret_writes.sh",
+          "expectedOutput": "0",
+          "weightage": 6
+        },
+        {
+          "id": "3",
+          "description": "Secret requests of every namespace and user are logged at Metadata",
+          "verificationScriptFile": "q5_s3_validate_all_namespaces_and_users.sh",
+          "expectedOutput": "0",
+          "weightage": 5
+        }
+      ]
+    }
+  ]
+}

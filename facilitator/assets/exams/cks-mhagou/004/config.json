@@ -1,0 +1,15 @@
+{
+  "lab": "mhagou-004",
+  "name": "CKS - MHagou - Exam 4",
+  "description": "ServiceAccount token automount, AppArmor, seccomp logging, a Falco shell rule and an audit policy for Secrets",
+  "difficulty": "Hard",
+  "warmUpTimeInSeconds": 260,
+  "examDurationInMinutes": 120,
+  "workerNodes": 1,
+  "answers": "assets/exams/cks-mhagou/004/answers.md",
+  "questions": "assessment.json",
+  "totalMarks": 100,
+  "lowScore": 40,
+  "mediumScore": 60,
+  "highScore": 90
+}
