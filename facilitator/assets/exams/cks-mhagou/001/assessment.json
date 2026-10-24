@@ -1,0 +1,413 @@
+{
+  "questions": [
+    {
+      "id": "1",
+      "namespace": "webhook-lab",
+      "machineHostname": "ckad9999",
+      "question": "On the control plane (`{{CONTROL_PLANE}}`) enable the admission plugins **ImagePolicyWebhook** and **NodeRestriction** of the kube-apiserver.\n\nThe directory `/etc/kubernetes/admission` already exists on the control plane: it holds `webhook.kubeconfig` and its CA `ca.pem`. The webhook backend (`https://127.0.0.1:8443/image_policy`) is running on the control plane.\n\n1. Connect to the control plane with `ssh {{CONTROL_PLANE}}`. The AdmissionConfiguration of the ImagePolicyWebhook plugin is already in `/etc/kubernetes/admission/admission-config.yaml` (next to `webhook.kubeconfig` and `ca.pem`): read it (the plugin must deny the images when the backend cannot be reached).\n2. Enable both plugins (in addition to the plugins that are already enabled), point the API server to this file and make the directory available inside the kube-apiserver Pod.\n3. Make sure the API server is healthy again. Pods whose image is tagged `latest` (or has no tag) must now be rejected by the webhook; Pods with a pinned image must still be admitted (you can test with `kubectl run ... --dry-run=server -n webhook-lab`).",
+      "concepts": [
+        "admission control",
+        "imagepolicywebhook",
+        "noderestriction",
+        "kube-apiserver"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "kube-apiserver enables ImagePolicyWebhook and NodeRestriction and has an admission control configuration file",
+          "verificationScriptFile": "q1_s1_validate_plugins_and_config_flag.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "The admission configuration is fail-closed (defaultAllow false), its kubeconfig exists and the directory is mounted",
+          "verificationScriptFile": "q1_s2_validate_admission_config_file.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "Pods whose image is tagged latest (or has no tag) are denied by the webhook",
+          "verificationScriptFile": "q1_s3_validate_latest_denied.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "4",
+          "description": "Pods with pinned images are still admitted by the working webhook",
+          "verificationScriptFile": "q1_s4_validate_pinned_allowed.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "namespace": "secured-area",
+      "machineHostname": "ckad9999",
+      "question": "Confine a Pod with AppArmor, seccomp and the Pod Security Standards.\n\nThe AppArmor profile `secure-profile` is prepared on the worker node `{{NODE01}}` in `/etc/apparmor.d/secure-profile`. The Pod manifest `/tmp/exam/mhagou-001-q2/secure-pod.yaml` (Pod `secure-nginx`, namespace `secured-area`, node `{{NODE01}}`) is incomplete.\n\n1. Load the profile on `{{NODE01}}` with `apparmor_parser`.\n2. Label the namespace `secured-area` to **enforce** the `restricted` Pod Security Standard.\n3. Modify `secure-pod.yaml` so that the Pod uses the `RuntimeDefault` seccomp profile and your custom `localhost/secure-profile` AppArmor profile, **is admitted by the restricted standard** and runs on `{{NODE01}}`. Create the Pod.",
+      "concepts": [
+        "apparmor",
+        "seccomp",
+        "pod security standards"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "AppArmor profile secure-profile is loaded on {{NODE01}} in enforce mode",
+          "verificationScriptFile": "q2_s1_validate_profile_loaded.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "Namespace secured-area enforces the restricted Pod Security Standard",
+          "verificationScriptFile": "q2_s2_validate_namespace_restricted.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "Pod secure-nginx runs on {{NODE01}} with the RuntimeDefault seccomp profile",
+          "verificationScriptFile": "q2_s3_validate_pod_seccomp_default.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "4",
+          "description": "The container is confined by secure-profile (enforce): the programs it starts (busybox, the shell tools) are denied",
+          "verificationScriptFile": "q2_s4_validate_pod_apparmor_confined.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "namespace": "crypto-watch",
+      "machineHostname": "ckad9999",
+      "question": "Three checks on the nodes of the cluster.\n\n1. **Kube-bench.** The kubelet of the worker node `{{NODE02}}` does not meet the CIS benchmark. Run `kube-bench` on `{{NODE02}}` (`ssh {{NODE02}}`), find the failing check about the kubelet's anonymous authentication (`--anonymous-auth`) and fix the kubelet configuration so that it passes. The kubelet must keep running.\n2. **Checksums.** `/tmp/exam/mhagou-001-q3/manifests` holds copies of three control plane manifests and `/tmp/exam/mhagou-001-q3/SHA512SUMS` the known-good SHA-512 hashes. One manifest was tampered with: write its file name to `/tmp/exam/mhagou-001-q3/modified.txt` and leave the files as they are.\n3. **Malicious process.** On the worker node `{{NODE01}}` a container runs a process called `cryptominer`. Find it (`crictl` or `ps`), then stop and remove that container only: the other containers of the namespace `crypto-watch` must keep running.",
+      "concepts": [
+        "kube-bench",
+        "kubelet",
+        "sha512sum",
+        "crictl",
+        "runtime security"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The kubelet of {{NODE02}} runs with anonymous authentication disabled (effective configuration)",
+          "verificationScriptFile": "q3_s1_validate_kubelet_anonymous_disabled.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "kube-bench check 4.2.1 passes on {{NODE02}}",
+          "verificationScriptFile": "q3_s2_validate_kube_bench_421.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "modified.txt names the manifest whose checksum differs",
+          "verificationScriptFile": "q3_s3_validate_modified_manifest.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "4",
+          "description": "The cryptominer container is stopped and removed from {{NODE01}}; the other containers still run",
+          "verificationScriptFile": "q3_s4_validate_miner_container_removed.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "namespace": "team-azure",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `team-azure` run the Pods `messenger` (label `role=messenger`), `db` (`role=database`), `cache` (`role=cache`) and `reporter` (`role=reporting`).\n\nA CiliumNetworkPolicy `baseline-allow` already allows the traffic of the namespace: leave it as it is.\n\nCreate a **CiliumNetworkPolicy** named `p1` in `team-azure` that **denies the egress traffic** of the Pods labelled `role=messenger` to the Pods labelled `role=database`. Everything else must keep working: `messenger` must still reach `cache`, and the other Pods must still reach `db`.",
+      "concepts": [
+        "cilium",
+        "network policy",
+        "egress deny"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "CiliumNetworkPolicy p1 exists in team-azure and selects the role=messenger Pods",
+          "verificationScriptFile": "q4_s1_validate_policy_exists.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "messenger cannot reach db and still reaches cache",
+          "verificationScriptFile": "q4_s2_validate_messenger_blocked.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "3",
+          "description": "The deny is scoped to messenger: reporter still reaches db",
+          "verificationScriptFile": "q4_s3_validate_policy_scoped.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "namespace": "files",
+      "machineHostname": "ckad9999",
+      "question": "The files `/tmp/exam/mhagou-001-q5/Dockerfile` and `/tmp/exam/mhagou-001-q5/deployment.yaml` are insecure (files only: nothing has to be built or deployed).\n\n1. Rewrite the **Dockerfile**: use a specific, pinned base image tag (not `latest`), run as a non-root user, and use `COPY` instead of `ADD`. Keep the rest of the image (curl, the archive in `/opt/app/`, the `CMD`).\n2. Rewrite the **deployment.yaml**: remove the privileged access and drop all Linux capabilities (`ALL`).",
+      "concepts": [
+        "dockerfile best practices",
+        "securityContext",
+        "least privilege"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The base image of the Dockerfile is pinned (not latest, not untagged)",
+          "verificationScriptFile": "q5_s1_validate_pinned_base_image.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "The image runs as a non-root user",
+          "verificationScriptFile": "q5_s2_validate_non_root_user.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "COPY is used for app.tar.gz instead of ADD and the CMD is kept",
+          "verificationScriptFile": "q5_s3_validate_copy_not_add.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "4",
+          "description": "The Deployment is valid and its container is not privileged",
+          "verificationScriptFile": "q5_s4_validate_deployment_not_privileged.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "5",
+          "description": "Every container of the Deployment drops ALL capabilities",
+          "verificationScriptFile": "q5_s5_validate_drop_all_capabilities.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "6",
+      "namespace": "enc-probe",
+      "machineHostname": "ckad9999",
+      "question": "Encrypt the Secrets at rest.\n\n1. Generate a base64 encoded key: `head -c 32 /dev/urandom | base64`.\n2. Connect to the control plane with `ssh {{CONTROL_PLANE}}`. The file `/etc/kubernetes/etcd-encryption.yaml` is already there with the structure of the EncryptionConfiguration: replace `<YOUR_BASE64_STRING_HERE>` with your key.\n3. Configure the kube-apiserver to use this file (it must also be available inside the kube-apiserver Pod) and wait until the API server is healthy again.\n4. Create a **new** Secret and check with `etcdctl` (inside the etcd Pod/container) that its raw value in etcd starts with `k8s:enc:aescbc:v1:`.",
+      "concepts": [
+        "encryption at rest",
+        "etcd",
+        "secrets",
+        "kube-apiserver"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The API server uses an EncryptionConfiguration with aescbc first (valid key) and identity as fallback",
+          "verificationScriptFile": "q6_s1_validate_encryption_config.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "The API server was restarted with the configuration mounted and is ready",
+          "verificationScriptFile": "q6_s2_validate_apiserver_running_with_config.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "A new Secret is stored encrypted (k8s:enc:aescbc:v1) in etcd",
+          "verificationScriptFile": "q6_s3_validate_secret_encrypted_in_etcd.sh",
+          "expectedOutput": "0",
+          "weightage": 5
+        }
+      ]
+    },
+    {
+      "id": "7",
+      "namespace": "shadow-watch",
+      "machineHostname": "ckad9999",
+      "question": "Falco runs as a systemd service (`falco-modern-bpf`) on the worker node `{{NODE01}}`.\n\n1. Create a custom rule in `/etc/falco/falco_rules.local.yaml` (on `{{NODE01}}`) that triggers a **WARNING** when **any process reads `/etc/shadow`**. The output message of your rule must **start with `SHADOW READ`**. (Falco evaluates every matching rule on this node, so your alert is logged next to the ones of the default rules.)\n2. Reload the Falco service.\n3. Exec into the Pod `report-agent` (namespace `shadow-watch`, it runs on `{{NODE01}}`), run `cat /etc/shadow` and verify that the alert appears (for example with `journalctl -u falco-modern-bpf`).",
+      "concepts": [
+        "falco",
+        "runtime security",
+        "custom rules"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "falco_rules.local.yaml has a WARNING rule for /etc/shadow with an output starting with SHADOW READ and Falco accepts it",
+          "verificationScriptFile": "q7_s1_validate_rule_file.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "The Falco service of {{NODE01}} was restarted after the rule was written and runs",
+          "verificationScriptFile": "q7_s2_validate_falco_reloaded.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "3",
+          "description": "Falco logs a SHADOW READ WARNING when processes read /etc/shadow in a Pod",
+          "verificationScriptFile": "q7_s3_validate_alert_on_shadow_read.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    },
+    {
+      "id": "8",
+      "namespace": "release-lab",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `release-lab` the ServiceAccount `release-bot` is bound by the RoleBinding `release-bind` to a Role that allows everything in the namespace. Apply least privilege: after your change `release-bot` must be able to\n\n- `get`, `list` and `watch` Pods and read their logs (`pods/log`);\n- `get`, `list`, `watch`, `update` and `patch` Deployments (`apps`);\n\nand **nothing else** (no access to Secrets or ConfigMaps, no deletion, no way to change RBAC objects). Keep using a Role and RoleBinding of the namespace. The ServiceAccount `audit-bot` and its permissions are not part of the task and must not change.",
+      "concepts": [
+        "rbac",
+        "least privilege",
+        "roles",
+        "privilege escalation"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "release-bot only reads Pods and their logs",
+          "verificationScriptFile": "q8_s1_validate_pods_read_only.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "release-bot can roll out Deployments (get, list, watch, update, patch) but cannot create or delete them",
+          "verificationScriptFile": "q8_s2_validate_deployments_rollout.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "release-bot cannot read Secrets or ConfigMaps and cannot escalate through RBAC",
+          "verificationScriptFile": "q8_s3_validate_no_secrets_no_escalation.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "4",
+          "description": "release-bot is still bound to a Role without wildcards; audit-bot is untouched",
+          "verificationScriptFile": "q8_s4_validate_binding_kept_no_wildcards.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "9",
+      "namespace": "prod-x12cs",
+      "machineHostname": "ckad9999",
+      "question": "A Pod called `redis-backend` runs in the namespace `prod-x12cs`. It is exposed by a Service of type ClusterIP and listens on TCP port 6379 (it also listens on port 8080).\n\nCreate a NetworkPolicy named `allow-redis-access` in `prod-x12cs` that locks down the access to this Pod to:\n\n- any Pod in the same namespace with the label `backend=prod-x12cs`;\n- all Pods in the namespace `prod-yx13cs`.\n\nTraffic is only allowed on TCP port 6379. All other incoming connections must be blocked. Use the existing labels.",
+      "concepts": [
+        "network policy",
+        "ingress",
+        "namespace selector"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "NetworkPolicy allow-redis-access exists, selects redis-backend through its labels and restricts ingress",
+          "verificationScriptFile": "q9_s1_validate_policy_exists.sh",
+          "expectedOutput": "0",
+          "weightage": 1
+        },
+        {
+          "id": "2",
+          "description": "In prod-x12cs only the Pods labelled backend=prod-x12cs reach redis-backend",
+          "verificationScriptFile": "q9_s2_validate_same_namespace_clients.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "The namespace prod-yx13cs reaches redis-backend, other namespaces do not",
+          "verificationScriptFile": "q9_s3_validate_other_namespaces.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "4",
+          "description": "Only TCP port 6379 is open to the allowed clients",
+          "verificationScriptFile": "q9_s4_validate_only_port_6379.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "namespace": "vault-lab",
+      "machineHostname": "ckad9999",
+      "question": "In the namespace `vault-lab` the ServiceAccount `vault-sa` and the Pod `immutable-pod` are defined in `/tmp/exam/mhagou-001-q10/strict-pod.yaml` (and already created).\n\n1. Modify the ServiceAccount `vault-sa` so that it does **not automount** the API token by default.\n2. Modify the Pod `immutable-pod` (re-create it: a Pod cannot be edited in place) so that it runs with `readOnlyRootFilesystem: true` and `runAsNonRoot: true`.\n3. Mount the token of `vault-sa` into the Pod yourself with a **projected volume** in `/var/run/secrets/kubernetes.io/serviceaccount` (the file `/var/run/secrets/kubernetes.io/serviceaccount/token`).\n4. Create an `emptyDir` volume mounted at `/tmp` so that the container can still write temporary files despite the read-only root filesystem.",
+      "concepts": [
+        "service accounts",
+        "projected volumes",
+        "security context",
+        "read-only filesystem"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "ServiceAccount vault-sa does not automount its token",
+          "verificationScriptFile": "q10_s1_validate_sa_no_automount.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "immutable-pod uses vault-sa and mounts the token through its own projected volume",
+          "verificationScriptFile": "q10_s2_validate_projected_token_volume.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "The token file inside the Pod belongs to vault-sa and comes from the projected volume",
+          "verificationScriptFile": "q10_s3_validate_token_content.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "4",
+          "description": "The root filesystem is read-only and /tmp is a writable emptyDir",
+          "verificationScriptFile": "q10_s4_validate_read_only_root_tmp.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "5",
+          "description": "runAsNonRoot is set and the process runs with a non-zero UID",
+          "verificationScriptFile": "q10_s5_validate_run_as_non_root.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    }
+  ]
+}

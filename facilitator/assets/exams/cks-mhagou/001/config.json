@@ -1,0 +1,15 @@
+{
+  "lab": "mhagou-001",
+  "name": "CKS - MHagou - Exam 1",
+  "description": "ImagePolicyWebhook, AppArmor/seccomp/PSS, kube-bench, Cilium, Dockerfile hardening, etcd encryption, Falco, RBAC, NetworkPolicy and projected tokens",
+  "difficulty": "Hard",
+  "warmUpTimeInSeconds": 300,
+  "examDurationInMinutes": 120,
+  "workerNodes": 1,
+  "answers": "assets/exams/cks-mhagou/001/answers.md",
+  "questions": "assessment.json",
+  "totalMarks": 100,
+  "lowScore": 40,
+  "mediumScore": 60,
+  "highScore": 90
+}
