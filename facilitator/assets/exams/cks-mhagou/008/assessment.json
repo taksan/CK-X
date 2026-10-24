@@ -1,0 +1,267 @@
+{
+  "questions": [
+    {
+      "id": "1",
+      "namespace": "forensics-lab",
+      "machineHostname": "ckad9999",
+      "question": "The Pod `rogue-pod` runs in the namespace `forensics-lab` on the worker node `{{NODE01}}`. Its container `snooper-container` keeps reading a sensitive file named `secret.txt`. Falco is installed on `{{NODE01}}`.\n\nWrite a custom Falco rule in `/tmp/exam/mhagou-008-q1/catch-rogue.yaml` (on the jumphost, or on `{{NODE01}}` if you work there). The file must be self-contained: Falco must run with `falco -r /tmp/exam/mhagou-008-q1/catch-rogue.yaml` on `{{NODE01}}`.\n\nThe rule must detect when a process **inside a container** reads `secret.txt`. The alert it produces must show:\n\n- the container that accessed the file (its id or its name);\n- the path of the file;\n- the command that read it.\n\nReads of the same file made directly on the host must **not** trigger the rule. Do not modify or restart `rogue-pod`.",
+      "concepts": [
+        "falco",
+        "runtime security",
+        "custom rules"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Falco loads the rule file /tmp/exam/mhagou-008-q1/catch-rogue.yaml and runs with it",
+          "verificationScriptFile": "q1_s1_validate_rule_loads.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "The rule raises an alert when the container reads secret.txt",
+          "verificationScriptFile": "q1_s2_validate_alert_fires.sh",
+          "expectedOutput": "0",
+          "weightage": 5
+        },
+        {
+          "id": "3",
+          "description": "The alert identifies the container (id or name)",
+          "verificationScriptFile": "q1_s3_validate_alert_container.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "4",
+          "description": "The alert shows the file path and the command that read the file",
+          "verificationScriptFile": "q1_s4_validate_alert_command.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "5",
+          "description": "Reads of secret.txt made on the host do not trigger the rule",
+          "verificationScriptFile": "q1_s5_validate_host_read_ignored.sh",
+          "expectedOutput": "0",
+          "weightage": 5
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "namespace": "secure-web",
+      "machineHostname": "ckad9999",
+      "question": "The namespace `secure-web` contains the Deployment `secure-app`, exposed by a Service of the same name, and the TLS Secret `web-tls` (certificate for `secure-app.company.com`).\n\nThe ingress controller installed in the cluster is Traefik (IngressClass `traefik`), together with its CRDs (for example `Middleware`).\n\nCreate an Ingress named `secure-ingress` in `secure-web` that:\n\n- routes the host `secure-app.company.com`, path `/`, to the Service `secure-app`;\n- terminates TLS with the existing Secret `web-tls`;\n- uses the ingress class `traefik`;\n- forces SSL: every plain HTTP request for the host must be redirected to HTTPS.",
+      "concepts": [
+        "ingress",
+        "tls",
+        "traefik",
+        "middleware"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "Ingress secure-ingress (class traefik) routes secure-app.company.com / to Service secure-app with TLS from web-tls",
+          "verificationScriptFile": "q2_s1_validate_ingress.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "https://secure-app.company.com/ returns the page of secure-app",
+          "verificationScriptFile": "q2_s2_validate_https_serves_app.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "The certificate of web-tls is served for secure-app.company.com",
+          "verificationScriptFile": "q2_s3_validate_served_certificate.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "4",
+          "description": "HTTP requests for secure-app.company.com are redirected to HTTPS",
+          "verificationScriptFile": "q2_s4_validate_http_redirect.sh",
+          "expectedOutput": "0",
+          "weightage": 6
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "namespace": "threat-prevention",
+      "machineHostname": "ckad9999",
+      "question": "The security team found that Pods in the namespace `threat-prevention` try to connect to known malicious IP ranges used for command and control servers.\n\nCreate a NetworkPolicy named `block-malicious-egress` in `threat-prevention` that:\n\n- applies to all Pods of the namespace;\n- blocks **egress** traffic to the ranges `192.168.100.0/24` and `10.0.99.0/24`;\n- still allows DNS (UDP 53 and TCP 53) to any destination, even inside those ranges;\n- allows all other egress traffic;\n- does not affect ingress traffic.",
+      "concepts": [
+        "network policy",
+        "egress",
+        "ipBlock"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "block-malicious-egress selects all Pods of threat-prevention and restricts egress only",
+          "verificationScriptFile": "q3_s1_validate_policy_scope.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "2",
+          "description": "DNS over UDP/53 and TCP/53 is allowed to any destination",
+          "verificationScriptFile": "q3_s2_validate_dns_allowed.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "3",
+          "description": "The two malicious /24 ranges are blocked and all other egress traffic is allowed",
+          "verificationScriptFile": "q3_s3_validate_malicious_ranges.sh",
+          "expectedOutput": "0",
+          "weightage": 6
+        },
+        {
+          "id": "4",
+          "description": "With the policy in force DNS names resolve from the Pods",
+          "verificationScriptFile": "q3_s4_validate_runtime_dns.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "namespace": "ci-cd",
+      "machineHostname": "ckad9999",
+      "question": "The ServiceAccount `ci-bot` in the namespace `ci-cd` has more permissions than it needs: they allow it to give itself cluster-admin rights.\n\nChange the RBAC configuration so that:\n\n- `ci-bot` cannot bind itself to any role whose name contains `admin` or `cluster-admin`, neither with a ClusterRoleBinding nor with a RoleBinding;\n- `ci-bot` keeps its current permissions on workloads in `ci-cd` (pods, services, configmaps, deployments, replicasets) and its read-only access to rolebindings and clusterrolebindings.\n\nThe permissions are granted through the ClusterRole `ci-bot-role` and the ClusterRoleBinding `ci-bot-binding`. Recreate objects if you need to (the `roleRef` of a binding cannot be changed).",
+      "concepts": [
+        "rbac",
+        "privilege escalation",
+        "least privilege"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "ci-bot cannot bind itself to cluster-admin (ClusterRoleBinding or RoleBinding)",
+          "verificationScriptFile": "q4_s1_validate_cluster_admin_blocked.sh",
+          "expectedOutput": "0",
+          "weightage": 5
+        },
+        {
+          "id": "2",
+          "description": "ci-bot cannot bind itself to admin (ClusterRoleBinding or RoleBinding)",
+          "verificationScriptFile": "q4_s2_validate_admin_blocked.sh",
+          "expectedOutput": "0",
+          "weightage": 5
+        },
+        {
+          "id": "3",
+          "description": "ci-bot keeps its permissions on pods, services and configmaps in ci-cd",
+          "verificationScriptFile": "q4_s3_validate_core_permissions_kept.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "4",
+          "description": "ci-bot keeps its permissions on deployments and replicasets in ci-cd",
+          "verificationScriptFile": "q4_s4_validate_apps_permissions_kept.sh",
+          "expectedOutput": "0",
+          "weightage": 3
+        },
+        {
+          "id": "5",
+          "description": "ci-bot can still read rolebindings and clusterrolebindings",
+          "verificationScriptFile": "q4_s5_validate_binding_visibility_kept.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "namespace": "files",
+      "machineHostname": "ckad9999",
+      "question": "The Dockerfile of an API server is `/tmp/exam/mhagou-008-q5/api-server.Dockerfile` (next to the binary `app-server`, on the jumphost). Modify it to reduce the attack surface of the image:\n\n- use `gcr.io/distroless/base` as the base image;\n- copy only the `app-server` binary, to `/app/server`;\n- run the container as the distroless non-root user (`nonroot`, UID `65532`);\n- configure `/app/server` as the entrypoint, in exec form;\n- remove every package installation, shell setup or other unnecessary instruction.\n\nDo not build the image and do not deploy anything.",
+      "concepts": [
+        "dockerfile",
+        "distroless",
+        "non-root",
+        "supply chain"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "The base image is gcr.io/distroless/base",
+          "verificationScriptFile": "q5_s1_validate_base_image.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "2",
+          "description": "Only FROM, COPY (app-server to /app/server), USER and ENTRYPOINT remain",
+          "verificationScriptFile": "q5_s2_validate_only_needed_instructions.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "3",
+          "description": "The container runs as the non-root user nonroot / 65532",
+          "verificationScriptFile": "q5_s3_validate_nonroot_user.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        },
+        {
+          "id": "4",
+          "description": "/app/server is the ENTRYPOINT in exec form",
+          "verificationScriptFile": "q5_s4_validate_exec_entrypoint.sh",
+          "expectedOutput": "0",
+          "weightage": 4
+        }
+      ]
+    },
+    {
+      "id": "6",
+      "namespace": "secure-runtime",
+      "machineHostname": "ckad9999",
+      "question": "A security audit found that containers in the namespace `secure-runtime` can be used for process debugging attacks. The Pod `secure-app` runs in the namespace on the worker node `{{NODE01}}`.\n\n1. Create a custom seccomp profile that blocks the syscalls `ptrace` and `process_vm_readv` with the action `SCMP_ACT_ERRNO` and allows all the other syscalls (default action `SCMP_ACT_ALLOW`).\n2. Save it as `/var/lib/kubelet/seccomp/profiles/block-debug.json` on `{{NODE01}}`.\n3. Make `secure-app` use the profile (a seccomp profile cannot be changed in a running Pod: re-create the Pod, keep its name, namespace and node).\n4. The Pod must stay functional: Running, Ready, and answering on port 80.",
+      "concepts": [
+        "seccomp",
+        "syscalls",
+        "pod security",
+        "node hardening"
+      ],
+      "verification": [
+        {
+          "id": "1",
+          "description": "A valid profile exists at /var/lib/kubelet/seccomp/profiles/block-debug.json on {{NODE01}}",
+          "verificationScriptFile": "q6_s1_validate_profile_file.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        },
+        {
+          "id": "2",
+          "description": "The profile allows everything except ptrace and process_vm_readv (SCMP_ACT_ERRNO)",
+          "verificationScriptFile": "q6_s2_validate_profile_rules.sh",
+          "expectedOutput": "0",
+          "weightage": 6
+        },
+        {
+          "id": "3",
+          "description": "secure-app uses the Localhost profile, is Running and Ready and answers on port 80",
+          "verificationScriptFile": "q6_s3_validate_pod_uses_profile.sh",
+          "expectedOutput": "0",
+          "weightage": 6
+        },
+        {
+          "id": "4",
+          "description": "A seccomp filter is active in every container of secure-app",
+          "verificationScriptFile": "q6_s4_validate_seccomp_active.sh",
+          "expectedOutput": "0",
+          "weightage": 2
+        }
+      ]
+    }
+  ]
+}

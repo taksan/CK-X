@@ -1,0 +1,15 @@
+{
+  "lab": "mhagou-008",
+  "name": "CKS - MHagou - Exam 8",
+  "description": "Falco rule for a rogue container, Traefik TLS ingress with HTTPS redirect, egress NetworkPolicy with IP blocks, RBAC privilege escalation, distroless Dockerfile and a seccomp profile",
+  "difficulty": "Hard",
+  "warmUpTimeInSeconds": 260,
+  "examDurationInMinutes": 120,
+  "workerNodes": 1,
+  "answers": "assets/exams/cks-mhagou/008/answers.md",
+  "questions": "assessment.json",
+  "totalMarks": 100,
+  "lowScore": 40,
+  "mediumScore": 60,
+  "highScore": 90
+}
