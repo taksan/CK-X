@@ -7,6 +7,14 @@
 function processQuestionContent(content) {
     // First, preserve existing HTML formatting
     let processedContent = content;
+
+    // The text of a `code span` is literal: escape it, or placeholders like `<node-ip>` are taken for HTML tags and vanish
+    processedContent = processedContent.replace(
+        /`([^`]+)`/g,
+        function(match, text) {
+            return '`' + text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '`';
+        }
+    );
     
     // Add highlighting to text in single quotes that isn't already styled
     processedContent = processedContent.replace(
