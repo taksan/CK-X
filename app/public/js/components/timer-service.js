@@ -8,6 +8,7 @@ let timerInterval = null;
 let timerElement = null;
 let onTimerEndCallback = null;
 let isTimerRunning = false;
+let remainingSeconds = 0; // Seconds left, kept at module level so the timer can be paused and resumed
 const timeThresholds = [30, 10, 0]; // Time thresholds in minutes
 let timeThresholdCallbacks = {}; // Callbacks for time thresholds
 let processedThresholds = new Set(); // Track which thresholds have been processed
@@ -70,7 +71,11 @@ function calculateRemainingTime(examInfo) {
         console.log('Exam duration (minutes):', examInfo.info.examDurationInMinutes);
         
         const durationMs = examInfo.info.examDurationInMinutes * 60 * 1000;
-        const elapsedMs = Date.now() - startTime;
+        const events = examInfo.info.events;
+        // Time spent paused does not count: closed pauses are summed, an open one runs until now
+        const pausedMs = (Number(events.totalPausedMs) || 0) +
+            (events.pausedAt ? Date.now() - Number(events.pausedAt) : 0);
+        const elapsedMs = Date.now() - startTime - pausedMs;
         const remainingMs = Math.max(0, durationMs - elapsedMs);
         
         // Debug log for troubleshooting
@@ -136,8 +141,14 @@ function startTimer() {
     if (isTimerRunning) return;
     isTimerRunning = true;
     
-    let remainingSeconds = timerDuration * 60;
-    
+    remainingSeconds = timerDuration * 60;
+    runInterval();
+}
+
+/**
+ * Tick once per second until the remaining time is used up
+ */
+function runInterval() {
     timerInterval = setInterval(() => {
         remainingSeconds--;
         
@@ -170,6 +181,23 @@ function stopTimer() {
         timerInterval = null;
         isTimerRunning = false;
     }
+}
+
+/**
+ * Pause the timer; the remaining time is kept until resumeTimer()
+ */
+function pauseTimer() {
+    if (!isTimerRunning) return;
+    clearInterval(timerInterval);
+    timerInterval = null;
+}
+
+/**
+ * Resume a paused timer from the time that was left
+ */
+function resumeTimer() {
+    if (!isTimerRunning || timerInterval) return;
+    runInterval();
 }
 
 /**
@@ -213,6 +241,8 @@ export {
     initTimer,
     startTimer,
     stopTimer,
+    pauseTimer,
+    resumeTimer,
     resetTimer,
     registerTimeThresholdCallbacks
 }; 

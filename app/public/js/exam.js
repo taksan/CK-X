@@ -39,6 +39,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const terminateModal = new bootstrap.Modal(document.getElementById('terminateModal'));
     const startExamModal = new bootstrap.Modal(document.getElementById('startExamModal'));
     const examEndModal = new bootstrap.Modal(document.getElementById('examEndModal'));
+    const pauseModal = new bootstrap.Modal(document.getElementById('pauseModal'));
+    const pauseExamBtn = document.getElementById('pauseExamBtn');
+    const resumeExamBtn = document.getElementById('resumeExamBtn');
     
     // State variables
     let examInfo = {}; // Store exam information
@@ -86,6 +89,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Hide timer for completed exam
                 examTimer.style.display = 'none';
+                pauseExamBtn.style.display = 'none';
                 
                 // Add Review Mode badge next to title
                 const headerTitle = document.querySelector('.header-title');
@@ -443,9 +447,11 @@ document.addEventListener('DOMContentLoaded', function() {
         if (remainingTime <= 0 || examInfo.info?.events?.examEndTime) {
             // Hide timer if time is up or exam has ended
             examTimer.style.display = 'none';
+            pauseExamBtn.style.display = 'none';
         } else {
             // Show and initialize timer with remaining time
             examTimer.style.display = 'block';
+            pauseExamBtn.style.display = '';
             
             // Initialize timer with DOM element
             TimerService.initTimer(examTimer, remainingTime, {
@@ -459,6 +465,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Start the timer
             TimerService.startTimer();
+
+            // The page was reloaded while paused: stay paused until Resume
+            if (examInfo.info?.events?.pausedAt) {
+                pauseExam(false);
+            }
         }
         
         // Track exam start
@@ -470,6 +481,34 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 1500);
     }
     
+    // Pause: stop the timer and block the page with a modal until Resume. The pause is saved in the
+    // exam events so a reload keeps it (and the paused time is not counted by calculateRemainingTime).
+    function pauseExam(save = true) {
+        TimerService.pauseTimer();
+        pauseModal.show();
+        if (!save) return;
+
+        const events = examInfo.info.events = examInfo.info.events || {};
+        events.pausedAt = Date.now();
+        ExamApi.trackExamEvent(ExamApi.getExamId(), { pausedAt: events.pausedAt })
+            .catch(error => console.error('Error saving pause:', error));
+    }
+
+    function resumeExam() {
+        const events = examInfo.info.events = examInfo.info.events || {};
+        if (events.pausedAt) {
+            events.totalPausedMs = (Number(events.totalPausedMs) || 0) + (Date.now() - Number(events.pausedAt));
+            events.pausedAt = null;
+            ExamApi.trackExamEvent(ExamApi.getExamId(), { pausedAt: null, totalPausedMs: events.totalPausedMs })
+                .catch(error => console.error('Error saving resume:', error));
+        }
+        TimerService.resumeTimer();
+        pauseModal.hide();
+    }
+
+    pauseExamBtn.addEventListener('click', () => pauseExam());
+    resumeExamBtn.addEventListener('click', resumeExam);
+
     // Handle exam end when timer reaches zero
     function handleExamEnd() {
         // Release wake lock as exam is ending

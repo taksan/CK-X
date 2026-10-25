@@ -98,6 +98,7 @@
         <div class="header-title-section">
             <div class="header-title">CK-X Simulator</div>
             <div class="timer" id="examTimer">120:00</div>
+            <button type="button" class="btn-custom" id="pauseExamBtn" title="Pause the timer" style="display: none;">Pause</button>
         </div>
         <div class="header-controls">
             <div class="dropdown d-inline-block">
@@ -201,6 +202,24 @@
                 </div>
                 <div id="terminal" class="terminal"></div>
                 <div id="sshConnectionStatus" class="connection-status">Connecting to SSH...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pause Modal: only Resume closes it -->
+    <div class="modal fade" id="pauseModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Exam paused</h5>
+                </div>
+                <div class="modal-body">
+                    <p>The timer is stopped. Time spent here does not count.</p>
+                    <p class="mb-0 text-muted small">Your lab environment keeps running.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success" id="resumeExamBtn">Resume</button>
+                </div>
             </div>
         </div>
     </div>
