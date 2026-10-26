@@ -59,8 +59,14 @@ def handle(conn):
         data = conn.recv(4096)
         line = data.split(b"\r\n")[0].decode(errors="replace")
         path = line.split(" ")[1] if " " in line else "/"
+        status = b"200 OK"
         body = b"OK" if path.startswith("/_ping") else json.dumps({"Version": "lab", "Os": "linux"}).encode()
-        head = b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n" % len(body)
+        if "/containers/" in path:
+            # no container is ever known here: Falco (container plugin) asks about every container it sees and
+            # crashes on a 200 answer that is not a container description
+            status = b"404 Not Found"
+            body = json.dumps({"message": "No such container"}).encode()
+        head = b"HTTP/1.1 %s\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nConnection: close\r\n\r\n" % (status, len(body))
         conn.sendall(head + body)
     except Exception:
         pass
