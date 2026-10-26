@@ -61,8 +61,11 @@ def handle(conn):
         path = line.split(" ")[1] if " " in line else "/"
         status = b"200 OK"
         body = b"OK" if path.startswith("/_ping") else json.dumps({"Version": "lab", "Os": "linux"}).encode()
-        if "/containers/" in path:
-            # no container is ever known here: Falco (container plugin) asks about every container it sees and
+        if "/containers/json" in path:
+            # the list of the containers: there is none (Falco lists them when it starts and warns when it cannot)
+            body = b"[]"
+        elif "/containers/" in path:
+            # no container is known here: Falco (container plugin) asks about every container it sees and
             # crashes on a 200 answer that is not a container description
             status = b"404 Not Found"
             body = json.dumps({"message": "No such container"}).encode()
