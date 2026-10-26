@@ -89,11 +89,13 @@ RUN chown -R candidate: /home/candidate/.kube /home/candidate/.minikube
 COPY scripts/prepare-exam-env.sh /usr/local/bin/prepare-exam-env
 COPY scripts/cleanup-exam-env.sh /usr/local/bin/cleanup-exam-env
 COPY scripts/ckx-node-vars.sh /usr/local/bin/ckx-node-vars
+COPY scripts/ckx-cluster-labels.py /usr/local/bin/ckx-cluster-labels
 
 # Make scripts executable
 RUN chmod +x /usr/local/bin/prepare-exam-env
 RUN chmod +x /usr/local/bin/cleanup-exam-env
 RUN chmod +x /usr/local/bin/ckx-node-vars
+RUN chmod +x /usr/local/bin/ckx-cluster-labels
 
 RUN mkdir -p /tmp/exam-env
 

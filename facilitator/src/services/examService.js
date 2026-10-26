@@ -58,7 +58,7 @@ async function createExam(examData) {
     
     // Set up the exam environment asynchronously
     // This will happen in the background while the response is sent back to the client
-    setupExamEnvironmentAsync(examId, nodeCount);
+    setupExamEnvironmentAsync(examId, nodeCount, examData.config.lab);
     
     // send metrics to metric server
     MetricService.sendMetrics(examId, {
@@ -94,11 +94,12 @@ async function createExam(examData) {
  * 
  * @param {string} examId - The exam ID
  * @param {number} nodeCount - Number of nodes to prepare
+ * @param {string} labId - The lab of the exam
  */
-async function setupExamEnvironmentAsync(examId, nodeCount) {
+async function setupExamEnvironmentAsync(examId, nodeCount, labId) {
   try {
     // Call the jumphost service to set up the exam environment
-    const result = await jumphostService.setupExamEnvironment(examId, nodeCount);     
+    const result = await jumphostService.setupExamEnvironment(examId, nodeCount, labId);     
     
     if (!result.success) {
       logger.error(`Failed to set up exam environment for exam ${examId}`, {

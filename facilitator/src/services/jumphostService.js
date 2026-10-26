@@ -24,9 +24,10 @@ const { createTracker } = require('./prepareProgress');
  * 
  * @param {string} examId - The ID of the exam to prepare
  * @param {number} nodeCount - The number of nodes to prepare (default: 1)
+ * @param {string} labId - The lab of the exam (for example mhagou-008): it labels what the setups create in the cluster
  * @returns {Promise<Object>} Result object with success status and data
  */
-async function setupExamEnvironment(examId, nodeCount = 1) {
+async function setupExamEnvironment(examId, nodeCount = 1, labId = 'unknown') {
   const tracker = createTracker();
 
   // The progress is stored for the status endpoint; a failure to store it must never break the preparation
@@ -61,7 +62,7 @@ async function setupExamEnvironment(examId, nodeCount = 1) {
     await saveProgress();
 
     // Execute the prepare-exam-env command on the jumphost
-    const command = `prepare-exam-env ${nodeCount} ${examId}`;
+    const command = `prepare-exam-env ${nodeCount} ${examId} ${labId}`;
     
     logger.info(`Executing command on jumphost: ${command}`);
     // the script reports its progress on the SSH channel: store it as it comes

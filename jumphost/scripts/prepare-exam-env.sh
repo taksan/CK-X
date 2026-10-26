@@ -41,11 +41,25 @@ run_logged() {
   return $rc
 }
 
+# What the setups create in the cluster is labelled (ck-x.io/created-by, ck-x.io/exam, ck-x.io/exam-run) so that
+# the next exam, or the end of this one, can remove it. This also runs when a setup fails half way.
+CLUSTER_SNAPSHOT=""
+label_created() {
+  [ -n "$CLUSTER_SNAPSHOT" ] || return 0
+  local snapshot=$CLUSTER_SNAPSHOT
+  CLUSTER_SNAPSHOT=""
+  ckx-cluster-labels label "$snapshot" --exam "$LAB_ID" --run "$EXAM_ID" || log "WARNING: could not label what the setups created"
+  rm -f "$snapshot"
+}
+trap label_created EXIT
+
 # Set defaults
 NUMBER_OF_NODES=${1:-1}
 EXAM_ID=${2:-""}
+LAB_ID=${3:-unknown}
 
 echo "Exam ID: $EXAM_ID"
+echo "Lab: $LAB_ID"
 echo "Number of nodes: $NUMBER_OF_NODES"
 
 progress 3 run docker "Checking Docker"
@@ -152,6 +166,14 @@ kubectl get nodes > "$LOG_FILE" 2>&1 || fail api "The Kubernetes API server did 
 echo "API server is ready"
 progress 55 ok api "Kubernetes API server is ready"
 
+# Remove what earlier exams left in the cluster (anything labelled as created by the simulator), then remember
+# what exists so that what the setups create can be labelled
+progress 55 run sweep "Removing what earlier exams left in the cluster"
+ckx-cluster-labels sweep --yes || log "WARNING: some leftovers of earlier exams are still in the cluster"
+CLUSTER_SNAPSHOT=$(mktemp)
+ckx-cluster-labels snapshot "$CLUSTER_SNAPSHOT" || { log "WARNING: could not take the snapshot of the cluster"; CLUSTER_SNAPSHOT=""; }
+progress 56 ok sweep "The cluster is clean"
+
 #Run setup scripts, in the order of the questions (q2 before q10)
 SETUP_SCRIPTS=()
 while IFS= read -r script; do SETUP_SCRIPTS+=("$script"); done < <(ls /tmp/exam-assets/scripts/setup/q*_setup.sh 2>/dev/null | sort -V)
@@ -167,6 +189,8 @@ for script in "${SETUP_SCRIPTS[@]}"; do
   [ "$RC" -eq 0 ] || fail "$STEP" "The setup of question $QUESTION failed (exit code $RC)" "$LOG_FILE"
   progress $((55 + 44 * INDEX / TOTAL)) ok "$STEP" "Question $QUESTION is ready"
 done
+
+label_created
 
 progress 100 ok ready "The exam environment is ready"
 log "Exam environment preparation completed successfully"

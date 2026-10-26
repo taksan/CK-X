@@ -24,6 +24,12 @@ else
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null candidate@k8s-api-server "env-cleanup $CLUSTER_NAME"
 fi
 
+# Whatever the setups created in a persistent cluster is labelled as created by the simulator: remove it
+if [ -f /home/candidate/.kube/.external-cluster ]; then
+  log "Removing what the exam created in the cluster"
+  ckx-cluster-labels sweep --yes || log "WARNING: some objects created by the exam are still in the cluster"
+fi
+
 # Optional exam hook: removes what the exam created on a persistent cluster
 if [ -x /tmp/exam-assets/scripts/session-cleanup.sh ]; then
   log "Running exam session-cleanup hook"
