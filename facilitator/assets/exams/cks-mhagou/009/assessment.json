@@ -45,7 +45,7 @@
       "id": "2",
       "namespace": "monitoring",
       "machineHostname": "ckad9999",
-      "question": "A security audit found a Deployment that handles ServiceAccount tokens improperly, in the namespace `monitoring`.\n\n1. Modify the existing ServiceAccount `stats-monitor-sa` so that it does not automount API credentials.\n2. Modify the existing Deployment `stats-monitor` so that a ServiceAccount token is injected and mounted at `/var/run/secrets/kubernetes.io/serviceaccount/token`. Use a **projected volume named `token`** and mount it **read-only**.\n\nThe manifest of the Deployment is in `/tmp/exam/mhagou-009-q2/deployment.yaml` (apply it again after your change).",
+      "question": "A security audit found a Deployment that handles ServiceAccount tokens improperly, in the namespace `monitoring`.\n\n1. Modify the existing ServiceAccount `stats-monitor-sa` so that it does not automount API credentials.\n2. Modify the existing Deployment `stats-monitor` so that a ServiceAccount token is injected and mounted at `/var/run/secrets/kubernetes.io/serviceaccount/token`. Use a **projected volume named `token`** and mount it **read-only** (`readOnly: true` on the volume mount).\n\nThe manifest of the Deployment is in `/tmp/exam/mhagou-009-q2/deployment.yaml` (apply it again after your change).",
       "concepts": [
         "service accounts",
         "projected volumes",
@@ -68,7 +68,7 @@
         },
         {
           "id": "3",
-          "description": "The rolled-out Pods expose a valid token of stats-monitor-sa from the projected volume",
+          "description": "The rolled-out Pods expose a valid token of stats-monitor-sa from a projected volume",
           "verificationScriptFile": "q2_s3_validate_pods_expose_token.sh",
           "expectedOutput": "0",
           "weightage": 3

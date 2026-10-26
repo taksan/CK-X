@@ -16,3 +16,19 @@ token_mount_ok() {
              else empty end]
           | index("/var/run/secrets/kubernetes.io/serviceaccount/token") != null))' >/dev/null 2>&1
 }
+
+# token_projected_ok <json of a Deployment or Pod> <pod-spec jq path>
+# Same as token_mount_ok without the name of the volume and without readOnly (item 2 judges those): the object
+# uses stats-monitor-sa and a projected serviceAccountToken volume, whatever its name, is mounted so that the token
+# ends up at /var/run/secrets/kubernetes.io/serviceaccount/token.
+token_projected_ok() {
+  echo "$1" | jq -e "$2"' as $s | ($s.serviceAccountName == "stats-monitor-sa") and
+    ([$s.volumes[]? | select(.projected != null) | {name: .name, paths: [.projected.sources[]? | select(.serviceAccountToken != null) | .serviceAccountToken.path]} | select((.paths | length) > 0)] as $vols
+     | ([($s.containers[]?, $s.initContainers[]?) | .volumeMounts[]? | select((.subPathExpr // "") == "")
+           | . as $m | $vols[] | select(.name == $m.name) | .paths[] | . as $p
+           | if ($m.subPath // "") == "" then (($m.mountPath | rtrimstr("/")) + "/" + $p)
+             elif $p == $m.subPath then $m.mountPath
+             elif ($p | startswith($m.subPath + "/")) then (($m.mountPath | rtrimstr("/")) + "/" + ($p | ltrimstr($m.subPath + "/")))
+             else empty end]
+          | index("/var/run/secrets/kubernetes.io/serviceaccount/token") != null))' >/dev/null 2>&1
+}
