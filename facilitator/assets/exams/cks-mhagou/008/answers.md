@@ -24,7 +24,7 @@ ssh {{NODE01}} 'falco -r /tmp/catch-rogue.yaml -M 15'
 
 Pitfalls:
 - Without `container.id != host` the read of the same file made on the node triggers the rule.
-- The alert must show the container (id or name), the path of the file and the command: put `%container.id` / `%container.name`, `%fd.name` and `%proc.cmdline` in the output.
+- The alert must show the container (id or name), the file (its path, or its directory and its name) and the command: put `%container.id` / `%container.name`, `%fd.name` and `%proc.cmdline` in the output.
 - Do not modify or restart `rogue-pod`.
 
 ## Question 2: Ingress with TLS and HTTPS redirect, Traefik (`secure-web`)

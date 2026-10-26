@@ -12,7 +12,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/nodes.sh"
 Q1_DIR="${Q1_DIR:-/tmp/exam/mhagou-008-q1}"
 Q1_NODE="${NODE01}"
-FALCO_JSON=""; FALCO_ERR=""; FALCO_LOADED=0
+FALCO_JSON=""; FALCO_ERR=""; FALCO_LOADED=0; RULE_NAMES="[]"
 
 q1_rule_content() {
   if [ -s "$Q1_DIR/catch-rogue.yaml" ]; then
@@ -65,6 +65,7 @@ run_candidate_falco() {
     return 1
   fi
   FALCO_LOADED=1
+  RULE_NAMES=$(q1_rule_names "$content")
   FALCO_JSON=$(echo "$RAW" | sed '/^#ERR/,$d' | jq -cR 'fromjson? | select(type == "object")' 2>/dev/null)
 }
 
@@ -73,7 +74,26 @@ q1_container_id() {
   kubectl get pod rogue-pod -n forensics-lab -o jsonpath='{.status.containerStatuses[0].containerID}' 2>/dev/null | sed 's#.*://##' | cut -c1-12
 }
 
-# events about the sensitive file read from inside a container
+# names of the rules defined in the candidate's file (the default rules, loaded as a fallback, are not judged)
+q1_rule_names() {
+  printf '%s\n' "$1" | sed -nE 's/^[[:space:]-]*rule:[[:space:]]*//p' | sed -E "s/[[:space:]]+\$//; s/^[\"']//; s/[\"']\$//" | jq -R . | jq -sc .
+}
+
+# alerts of the candidate's rules about the sensitive file: the text or the fields mention the file name
+# or its directory (/data). The output format is judged by its own item, not here.
+q1_file_events() {
+  echo "$FALCO_JSON" | jq -c --argjson rules "$RULE_NAMES" 'select(.rule as $r | $rules | index($r) != null)
+    | select((.output + ((.output_fields // {}) | tostring)) | test("secret\\.txt|/data"))' 2>/dev/null
+}
+
+# those alerts that point at the rogue container: its id or its name in the text or in the fields
 q1_container_events() {
-  echo "$FALCO_JSON" | jq -c 'select(((.output_fields // {}) | (."fd.name" // "" | endswith("secret.txt"))) and (((.output_fields // {})."container.id" // "host") as $c | $c != "host" and $c != "<NA>" and $c != ""))' 2>/dev/null
+  local cid; cid=$(q1_container_id)
+  q1_file_events | jq -c --arg cid "${cid:-none}" 'select((.output + ((.output_fields // {}) | tostring)) | (contains($cid) or contains("snooper-container")))' 2>/dev/null
+}
+
+# the other alerts: raised for a process that is not in the rogue container (the host reads of the validator)
+q1_host_events() {
+  local cid; cid=$(q1_container_id)
+  q1_file_events | jq -c --arg cid "${cid:-none}" 'select((.output + ((.output_fields // {}) | tostring)) | (contains($cid) or contains("snooper-container")) | not)' 2>/dev/null
 }

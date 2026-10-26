@@ -13,9 +13,9 @@ if ! echo "$MATCHES" | jq -e 'select((.output + (.output_fields | tostring)) | t
   exit 1
 fi
 
-# the file: the path (the reads are of /data/secret.txt inside the container)
-if ! echo "$MATCHES" | jq -e 'select((.output + (.output_fields | tostring)) | test("/secret.txt"))' >/dev/null 2>&1; then
-  echo "❌ The alert does not show the path of the file (for example %fd.name)"
+# the file: its path (%fd.name), or its directory and its name (the reads are of /data/secret.txt inside the container)
+if ! echo "$MATCHES" | jq -e 'select((.output + (.output_fields | tostring)) | (test("/secret\\.txt") or (test("secret\\.txt") and test("/data"))))' >/dev/null 2>&1; then
+  echo "❌ The alert does not show where the file is (for example %fd.name, or %fd.directory next to the file name)"
   exit 1
 fi
 
